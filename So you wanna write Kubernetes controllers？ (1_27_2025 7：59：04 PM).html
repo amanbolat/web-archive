@@ -1,0 +1,547 @@
+<!DOCTYPE html> <html data-lt-installed=true><!--
+ Page saved with SingleFile 
+ url: https://ahmet.im/blog/controller-pitfalls/ 
+ saved date: Mon Jan 27 2025 19:59:04 GMT+0100 (Central European Standard Time)
+--><meta charset=utf-8>
+<meta name=viewport content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+<title>So you wanna write Kubernetes controllers?</title>
+<meta name=og:type content=article>
+<meta name=og:site_name content="Ahmet Alp Balkan">
+<meta name=og:description content="Any company using Kubernetes eventually starts looking into developing their custom controllers. After all, what&amp;rsquo;s not to like about being able to provision resources with declarative configuration: Control loops are fun, and Kubebuilder makes...">
+<meta name=og:url content=https://ahmet.im/blog/controller-pitfalls/>
+<meta name=og:title content="So you wanna write Kubernetes controllers?">
+<meta name=og:published_date content=2025-01-22T21:26:45Z>
+<meta name=og:image content="https://tn.ahmet.im/screenshot?url=https://ahmet.im/blog/controller-pitfalls/">
+<meta name=twitter:card content=summary_large_image>
+<meta name=twitter:site content=@ahmetb>
+<meta name=twitter:url content=https://ahmet.im/blog/controller-pitfalls/>
+<meta name=twitter:creator content=@ahmetb>
+<meta name=twitter:title content="So you wanna write Kubernetes controllers?">
+<meta name=twitter:description content="Any company using Kubernetes eventually starts looking into developing their custom controllers. After all, what&amp;rsquo;s not to like about being able to provision resources with declarative configuration: Control loops are fun, and Kubebuilder makes...">
+<meta name=twitter:image:src content="https://tn.ahmet.im/screenshot?url=https://ahmet.im/blog/controller-pitfalls/">
+<link rel=alternate type=application/rss+xml href=https://ahmet.im/blog/feed/rss.xml title="So you wanna write Kubernetes controllers? - RSS feed">
+<meta name=referrer content=no-referrer><link type=image/x-icon rel="shortcut icon" href=data:, data-sf-original-href=https://ahmet.im/favicon.ico><link rel=canonical href=https://ahmet.im/blog/controller-pitfalls/><meta http-equiv=content-security-policy content="default-src 'none'; font-src 'self' data:; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self' data:; script-src 'unsafe-inline' data:; object-src 'self' data:; frame-src 'self' data:;"></head>
+<body>
+<nav class="container navbar navbar-expand-lg navbar-light">
+ <span class=navbar-brand>
+ /home/ahmetb
+ </span>
+ <button class="navbar-toggler sf-hidden" type=button data-toggle=collapse data-target=#navbarNavDropdown aria-controls=navbarNavDropdown aria-expanded=false aria-label="Toggle navigation">
+ 
+ </button>
+ <div class="collapse navbar-collapse" id=navbarNavDropdown>
+ <ul class=navbar-nav>
+ <li class=nav-item>
+ <a class=nav-link href=https://ahmet.im/blog rel=home>Blog</a>
+ </li>
+ <li class=nav-item>
+ <a class=nav-link href=https://ahmet.im/>About me</a>
+ </li>
+ <li class=nav-item>
+ <a class=nav-link href=https://twitter.com/ahmetb rel=me>Tweets</a>
+ </li>
+ <li class=nav-item>
+ <a class=nav-link href=https://github.com/ahmetb rel=me>GitHub</a>
+ </li>
+ <li class=nav-item>
+ <a class=nav-link href=https://github.com/ahmetb/public-speaking>Talks</a>
+ </li>
+ </ul>
+ </div>
+</nav>
+<article>
+ <header class="jumbotron jumbotron-fluid article-header mb-0">
+ <div class="container header-text-outer pl-0">
+ <div class="header-text-inner col-12 col-lg-8 col-xl-7 pr-1">
+ <h1 class=article-title>So you wanna write Kubernetes&nbsp;controllers?</h1>
+ 
+ <h3 class="text-muted font-italic h6">What they don't tell you about developing scalable and reliable controllers</h3>
+ 
+ <small class="article-metadata text-muted mt-4">
+ Published on
+ <time class=article-date datetime=2025-01-22T21:26:45Z title=2025-01-22T21:26:45Z pubdate>
+ 22 January 2025</time> (est. 17 min read)
+ 
+ <br>
+ 
+ <a class="badge badge-secondary" href=https://ahmet.im/tags/kubernetes/>kubernetes</a>
+ 
+ <a class="badge badge-secondary" href=https://ahmet.im/tags/controller-development/>controller development</a>
+ 
+ 
+ </small>
+ </div>
+ </div>
+ 
+ </header>
+ <div class="container article-body px-0 pt-3 pt-lg-4 pb-3 pb-xl-5">
+ <div class="col-12 col-lg-8 col-xl-7 pr-1">
+ 
+ <p>Any company using Kubernetes eventually starts looking into developing their
+custom controllers. After all, what’s not to like about being able to provision
+resources with declarative configuration: <a href="https://youtu.be/zCXiXKMqnuE?t=128">Control loops</a> are fun,
+and <a href=https://kubebuilder.io/>Kubebuilder</a> makes it extremely easy to get started with writing Kubernetes
+controllers. Next thing you know, customers in production are relying on the
+buggy controller you developed without understanding how to design idiomatic
+APIs and building reliable controllers.</p>
+<p>Low barrier to entry combined with good intentions and the “illusion of
+<em>working</em> implementation<sup id=fnref:1><a href=#fn:1 class=footnote-ref role=doc-noteref>1</a></sup>” is not a recipe for
+success while developing production-grade controllers. I’ve seen the real-world
+consequences of controllers developed without adequate understanding of
+Kubernetes and the controller machinery at multiple large companies. We went
+back to the drawing board and rewritten nascent controller implementations a few
+times to observe which mistakes people new to controller development
+make.</p>
+<nav id=TableOfContents>
+ <ol>
+ <li><a href=#design-crds-like-kubernetes-apis>Design CRDs like Kubernetes APIs</a></li>
+ <li><a href=#single-responsibility-controllers>Single-responsibility controllers</a></li>
+ <li><a href=#reconcile-method-shape>Reconcile() method shape</a></li>
+ <li><a href=#report-status-and-conditions>Report <code>status</code> and <code>conditions</code></a></li>
+ <li><a href=#learn-to-use-observedgeneration>Learn to use <code>observedGeneration</code></a></li>
+ <li><a href=#understand-the-cached-clients>Understand the cached clients</a></li>
+ <li><a href=#fast-and-offline-reconciliation>Fast and offline reconciliation</a></li>
+ <li><a href=#reconcile-return-values>Reconcile return values</a></li>
+ <li><a href=#workqueueresync-mechanics>Workqueue/resync mechanics</a></li>
+ <li><a href=#expectations-pattern>Expectations pattern</a></li>
+ <li><a href=#conclusion>Conclusion</a></li>
+ </ol>
+</nav>
+<h2 id=design-crds-like-kubernetes-apis>Design CRDs like Kubernetes APIs</h2>
+<p>It takes less than 5 minutes to write a Go struct and generate a Kubernetes
+CustomResourceDefinition (CRD) from it thanks to controller-gen. Then it takes
+several months to <a href=https://www.linkedin.com/blog/engineering/infrastructure/how-linkedin-moved-its-kubernetes-apis-to-a-different-api-group>migrate</a> from this poorly designed API to a better v2 design
+while the old API is being used in production. Don’t do that to yourself.</p>
+<p>If you’re serious about developing long-lasting production grade controllers,
+you have to deeply understand the <a href=https://github.com/kubernetes/community/blob/8a99192b3780b656f9dd53c0c37d9372a1c975f9/contributors/devel/sig-architecture/api-conventions.md>API Conventions</a> that
+Kubernetes uses to design its builtin APIs. Then, you need to study the builtin
+APIs, and think about things like “why is this field here”, “why is this field
+not a boolean”, “why is this a list of objects and not a string array”. Only
+when you’re able to reason about the builtin Kubernetes APIs and their design
+principles, you’ll be able to design a long-lasting custom resource API.</p>
+<p>Beginners not grasping these <a href=https://github.com/kubernetes/community/blob/8a99192b3780b656f9dd53c0c37d9372a1c975f9/contributors/devel/sig-architecture/api-conventions.md>API conventions</a> often make these
+mistakes:</p>
+<ol>
+<li>
+<p>They don’t understand the difference between <code>status</code> and <code>spec</code> and who
+should be updating each field (more about this later ).</p>
+</li>
+<li>
+<p>They don’t understand how to embed a child object within a parent object
+(e.g. how <code>Deployment.spec.template</code> becomes a <code>Pod</code>) so they end up
+re-creating child object properties in the parent object, usually with a
+worse organized structure.</p>
+</li>
+<li>
+<p>They don’t understand field semantics well (e.g. zero values, defaulting,
+validation) and end up with fields that are not set, or set to wrong values
+accepted into the API.
+I covered this topic in my
+<a href=https://ahmet.im/blog/crd-generation-pitfalls/>CRD generation pitfalls article</a>. If the behavior of the
+API is not clear when a field is not set, you’ve already failed.
+<a href=https://github.com/kubernetes/community/blob/8a99192b3780b656f9dd53c0c37d9372a1c975f9/contributors/devel/sig-architecture/api-conventions.md>API conventions</a> guide covers this topic fairly well.</p>
+</li>
+</ol>
+<p>If you study the builtin Kubernetes APIs extensively, you’ll find out things like
+<code>spec</code> field is not a “must have”<sup id=fnref:2><a href=#fn:2 class=footnote-ref role=doc-noteref>2</a></sup>, and not all APIs offer a <code>status</code> field.
+I would go as far as to say that you should also study custom APIs of projects
+like Knative, Istio and other popular controllers to develop a better
+understanding of organizing fields, and how to reuse some core types Kubernetes
+already offers (like <code>ControllerRevision</code>, <code>PodSpecTemplate</code>).</p>
+<h2 id=single-responsibility-controllers>Single-responsibility controllers</h2>
+<p>Time and time again we find engineers adding new unrelated responsibilities to
+existing controllers because it seems like a good place their <em>thing</em> can be
+shoved into. Kubernetes core controllers don’t have this problem for a reason.</p>
+<p>One of the main Kubernetes <a href=https://github.com/kubernetes/design-proposals-archive/blob/acc25e14ca83dfda4f66d8cb1f1b491f26e78ffe/architecture/principles.md#design-principles>design principles</a> is that controllers have clear
+inputs and outputs —and they do a well-defined job. For example, the Job
+controller watches <code>Job</code> objects and creates <code>Pod</code>s, which is a clear mental
+model to reason about. Similarly, each API is designed to offer a well defined
+functionality. A controller’s output can be an input to another controller.
+This is all what the <a href=https://en.wikipedia.org/wiki/Unix_philosophy#Origin>UNIX
+philosophy</a> suggests for
+a well reasoned system.</p>
+<p>I recommend studying the common <a href="https://youtu.be/zCXiXKMqnuE?t=539">controller shapes</a> (great talk by Daniel Smith,
+one of the architects of kube-apiserver) and the core Kubernetes controllers.
+You’ll notice that each core controller in Kubernetes core has a very clear job
+and inputs/outputs that can be explained in a small diagram. If your controller
+isn’t like this, you’re probably misarchitecting either your controller, or your
+CRDs.</p>
+<p>If you architect your APIs and controllers correctly, your controllers will run
+in harmony as if they’re integrating with Kubernetes core APIs or an
+off-the-shelf operator.</p>
+<p>When you controller design doesn’t quite feel right, or has too many
+inputs/outputs, does too much, or in general doesn’t <em>feel right</em>, you’re
+probably doing it unidiomatically. I struggled with this a lot myself,
+especially while developing controllers that manage external resources that have
+a non-declarative configuration paradigm.</p>
+<h2 id=reconcile-method-shape>Reconcile() method shape</h2>
+<p>Assuming you use kubebuilder (which uses <a href=https://github.com/kubernetes-sigs/controller-runtime>controller-runtime</a> like
+almost everyone else to develop a controller, and you implement the
+<code>Reconcile()</code> method that controller-runtime invokes every time one of your
+inputs change. This is where your controller does its magic, and since it’s
+possible to implement this method in any way, most beginners dump their
+spaghetti here.</p>
+<p>Therefore, large projects like Knative define their own <a href=https://github.com/knative/pkg/tree/accfe36491888e45ce8bd923ff8996283c055ae1/reconciler>common controller
+shapes</a>
+where every controller runs the same set steps in the same order. By developing
+a common controller shape/framework, you create a “guardrail” so that other
+engineers don’t deviate and introduce bugs in the reconciliation flow easily.</p>
+<p>Sadly, controller-runtime is not opinionated about this topic. Your best bet is
+to read other controllers (like <a href=https://github.com/kubernetes-sigs/cluster-api>Cluster
+API</a> to learn the idioms and
+master the reconciliation flow.</p>
+<p>There are also new projects like <a href=https://github.com/reddit/achilles-sdk>Apollo SDK by
+Reddit</a> that claims to offer
+finite-state machines for controller-runtime reconcilers.</p>
+<p>Over time, we found that almost all our controllers have a similar
+reconciliation flow. Here’s a pseudo-code of how our controllers look like:</p>
+<div class=highlight><pre tabindex=0><code class=language-go data-lang=go><span><span><span>func</span> (m <span>*</span>FooController) <span>Reconcile</span>(<span>...</span>, req ctrl.Request) (ctrl.Result, <span>error</span>) {
+</span></span><span><span>    log <span>:=</span> ctrl.<span>LoggerFrom</span>(ctx)
+</span></span><span><span>    obj <span>:=</span> <span>new</span>(apiv1.Foo)
+</span></span><span><span>    <span>// 1. Fetch the resource from cache: r.Client.Get(ctx, req.NamespacedName, obj)
+</span></span></span><span><span><span></span>    <span>// 2. Finalize object if it's being deleted
+</span></span></span><span><span><span></span>    <span>// 3. Add finalizers + r.Client.Update() if missing
+</span></span></span><span><span><span></span>
+</span></span><span><span>    orig <span>:=</span> foo.<span>DeepCopy</span>() <span>// take a copy of the object since we'll update it below
+</span></span></span><span><span><span></span>    foo.<span>InitializeConditions</span>() <span>// set all conditions to "Unknown", if missing
+</span></span></span><span><span><span></span>
+</span></span><span><span>   <span>// 4. Reconcile the resource and its child resources (the magic happens here).
+</span></span></span><span><span><span></span>   <span>//    Calculate the conditions and other "status" fields along the way.
+</span></span></span><span><span><span></span>   reconcileErr <span>:=</span> r.<span>reconcileKind</span>(ctx, kcp) <span>// magic happens here!
+</span></span></span><span><span><span></span>
+</span></span><span><span>    <span>// 5. if (orig.Status != foo.Status): client.Status.Patch(obj)
+</span></span></span><span><span><span></span>}
+</span></span></code></pre></div><p>Most notably, you’ll see here that we always initialize conditions and always
+update status inside <code>reconcileKind</code> even if the reconciliation fails.</p>
+<p>I recommend enforcing a similar common shape for controllers developed at your
+company (you can use custom kubebuilder plugins during scaffolding, but you
+can’t really <em>enforce</em> that either).</p>
+<h2 id=report-status-and-conditions>Report <code>status</code> and <code>conditions</code></h2>
+<p>I practically never seen a beginner engineer create a CRD that has properly
+designed <code>status</code> fields (if one exists, at all). Kubernetes <a href=https://github.com/kubernetes/community/blob/8a99192b3780b656f9dd53c0c37d9372a1c975f9/contributors/devel/sig-architecture/api-conventions.md>API
+conventions</a> discuss this at length, so I’ll keep it
+brief. If an API object is reconciled by a controller, the resource should
+expose its status in <code>status</code> fields. For example, there’s no ConfigMap
+controller so ConfigMap doesn’t have a <code>status</code> field.</p>
+<p>At LinkedIn, our custom API objects have a <code>status.conditions</code> field, similar to
+the Kubernetes core or <a href=https://github.com/knative/pkg/blob/accfe36491888e45ce8bd923ff8996283c055ae1/apis/condition_types.go#L58-L85>Knative
+conditions</a>,
+and we use something similar to <a href=https://github.com/knative/pkg/blob/accfe36491888e45ce8bd923ff8996283c055ae1/apis/condition_set.go>Knative condition set manager</a> that provides
+high-level accessor methods to set the conditions, and sort them etc.</p>
+<p>This helps us define and report conditions for API objects in a high-level way
+in the reconciler code:</p>
+<div class=highlight><pre tabindex=0><code class=language-go data-lang=go><span><span><span>func</span> (r <span>*</span>FooReconciler) <span>reconcileKind</span>(obj <span>*</span>Foo) errror {
+</span></span><span><span>    <span>// Create/configure a Bar object, wait for it to get Ready
+</span></span></span><span><span><span></span>    <span>if</span> err <span>:=</span> r.<span>reconcileBar</span>(obj); <span>if</span> err <span>!=</span> <span>nil</span> {
+</span></span><span><span>        obj.<span>MarkBarNotReady</span>(<span>"couldn't configure the Bar resource: %w"</span>, err)
+</span></span><span><span>        <span>return</span> fmt.<span>Errorf</span>(<span>"failed to reconcile Bar: %w"</span>, err)
+</span></span><span><span>    }
+</span></span><span><span>    obj.<span>MarkBarReady</span>()
+</span></span><span><span>}
+</span></span></code></pre></div><p>Every time we mark a condition, the condition manager recalculates the top-level
+<code>Ready</code> condition, which all our objects have as Kubernetes API conventions
+suggest. Other controllers and humans consume this top-level condition to
+understand how the objects are doing (plus you get to use <a href=https://github.com/ahmetb/kubectl-cond/><code>kubectl cond</code></a>
+on your objects).</p>
+<h2 id=learn-to-use-observedgeneration>Learn to use <code>observedGeneration</code></h2>
+<p>Something notable is that all our <code>conditions</code> have an <code>observedGeneration</code>
+field. You’ll even see some popular community CRDs (like ArgoCD
+<a href=https://doc.crds.dev/github.com/argoproj/argo-cd/argoproj.io/Application/v1alpha1@v2.13.3>Application</a>)
+do not offer this field.</p>
+<p>Essentially, this field tells us whether the condition is calculated based on
+the last configuration of the object —or whether we’re looking at
+a scale status information because the controller hasn’t gotten to reconciling
+the object after the update.</p>
+<p>For example, observing a <code>Ready</code> condition set to <code>True</code> alone means nothing
+(other than at some point in the past it was true). The condition offers a
+meaningful status info if and only if the <code>cond.observedGeneration == metadata.generation</code>.</p>
+<p><strong>Real-world story:</strong> A controller we had in production didn’t have the notion
+of <code>observedGeneration</code>, so its callers would update the object’s <code>spec</code> and
+immediately check its <code>Ready</code> condition. This condition would almost always be
+stale, as the controller hadn’t reconciled the object yet. So the callers
+interpreted an app rollout as <em>completed</em>, even though it hadn’t even started
+yet (and sometimes actually failed, but that failure was never noticed).</p>
+<h2 id=understand-the-cached-clients>Understand the cached clients</h2>
+<p>controller-runtime, by default, gives you a client to the Kubernetes API which
+serves the reads from an in-memory cache (as it uses <a href=https://leftasexercise.com/2019/07/15/understanding-kubernetes-controllers-part-iii-informers/>shared informers</a> from
+<code>client-go</code> under the covers). This is mostly fine, as controllers are designed
+to operate on stale data —but it is detrimental if you didn’t know this
+was the case since you might be writing buggy controllers due to this (more on
+this later in “expectations” section).</p>
+<p>When you perform a write (which directly hits the API server), its results may
+not be immediately visible in the cached client. For example, when you delete an
+object, it may still show up in the list result in a subsequent reconciliation
+to your surprise.</p>
+<p>The lesser-known behavior of controller-runtime most beginners don’t realize is
+that controller-runtime establishes new informers on-the-fly. Normally, when you
+specify explicit event sources while building your controller (e.g. in
+<code>builder.{For,Owns,Watches}</code>), the informers are started and caches are started
+during startup.</p>
+<p>However, if you try to make queries with <code>client.{Get,List}</code> on resources that
+you haven’t declared upfront in your controller setup, controller-runtime will
+initialize an informer on-the-fly and block on warming up its cache. This leads
+to issues like:</p>
+<ul>
+<li>Controller-runtime starting a watch for a resource type and start caching all
+its objects in memory (even if you were trying to query only one resource),
+potentially leading to the process running out of memory.</li>
+<li>Unpredictable reconciliation times while the informer cache is syncing, during
+which your worker goroutine will be blocked from reconciling other resources.</li>
+</ul>
+<p>That’s why I recommend setting <code>ReaderFailOnMissingInformer: true</code> and disabling
+this behavior so you’re fully aware of what kinds your controller is maintaining
+watches/caches on. Otherwise, controller-runtime doesn’t provide any
+observability on what informers it’s maintaining in the process.</p>
+<p>controller-runtime offers <a href=https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/cache#Options>a lot of other cache knobs</a>, such as entirely
+disabling the cache on certain types, dropping some fields from the in-memory
+cache, or limit the cache to certain namespaces. I recommend studying them to
+better understand how you can customize the cache behavior.</p>
+<h2 id=fast-and-offline-reconciliation>Fast and offline reconciliation</h2>
+<p>Reconciling an object that is alredy up-to-date (i.e. goal state == current
+state) should be really fast and offline —meaning it should not make any
+API calls (to external APIs or writes to Kubernetes API). That’s why controllers
+use <a href=#understand-the-cached-clients>cached clients</a> to serve reads from the
+cache to determine the state of the world.</p>
+<p>I’ve seen many real-world controllers making API calls to external systems, or
+make status updates to Kubernetes API (even when nothing has changed) every time
+<code>Reconcile()</code> got invoked. This is an anti-pattern, and a really bad idea for
+writing scalable and reliable controllers:</p>
+<ol>
+<li>
+<p>They bombarded the external APIs with unnecessary calls during controller
+startup (or full resyncs, or when they had bugs causing infinite requeue
+loops)</p>
+</li>
+<li>
+<p>When the external API was down, reconciliation would fail even though
+nothing has changed in the object. Depending on the implementation, this
+can block the next steps in the reconciliation flow even though those steps
+don’t depend on this external API call.</p>
+</li>
+<li>
+<p>Logic that takes long to execute in a reconciliation loop will hog the worker
+goroutine, and cause workqueue depth to increase, and reduce the
+throughput/responsiveness of the controller as the worker goroutine is
+occupied with the slow task.</p>
+</li>
+</ol>
+<p>Let’s go through a concrete example: Assume you have an S3Bucket controller that
+creates and manages S3 buckets using AWS S3 API. If you make a query to S3 API
+on every reconciliation, you’re doing it wrong. Instead, you should store the
+result of the S3 API calls you made, in a field like
+<code>status.observedGeneration</code>, to reflect what’s the last generation of the object
+that was successfully conveyed to S3 API. If this field has 0 value, the
+controller knows it needs to make a “Create Bucket” call to S3 API. When a
+client updates the S3Bucket custom resource, its <code>metadata.generation</code> will no
+longer match its stored <code>status.observedGeneration</code>, so the controller knows it
+needs to make a “Update Bucket” call to S3 API, and only upon success it will
+update the <code>status.observedGeneration</code> field. This way, you avoid making calls
+to the external S3 API when the object is already up-to-date.<sup id=fnref:3><a href=#fn:3 class=footnote-ref role=doc-noteref>3</a></sup></p>
+<h2 id=reconcile-return-values>Reconcile return values</h2>
+<p>Your <code>Reconcile()</code> function signature returns
+<a href=https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.0/pkg/reconcile#Result><code>ctrl.Result</code></a>
++<code>error</code> values. Usually beginners don’t have a solid grasp on what values to
+return from <code>Reconcile()</code>.</p>
+<p>You should know that your <code>Reconcile()</code> function is invoked every time your
+event sources declared in <code>builder.{For,Owns,Watches}</code> changes. If you know
+that, my general advice while returning reconciliation values:</p>
+<ol>
+<li>
+<p>If you have <code>error</code>s during reconciliation, return the error; not <code>Requeue: true</code>. Controller-runtime will requeue for you.</p>
+</li>
+<li>
+<p>Use <code>Requeue: true</code> only when there’s no error but something you started is
+still in progress, and you want to check its status with the <a href=https://github.com/kubernetes/client-go/blob/9897373fe6348db656b1f4039033d509b8a4f241/util/workqueue/default_rate_limiters.go#L51-L53>default backoff
+logic</a>.</p>
+</li>
+<li>
+<p>Use <code>RequeueAfter: &lt;TIME&gt;</code> only when you want to reconcile the object after
+a certain time has passed. This is useful for implementing a wall-clock based
+periodic reconciliation (e.g. a CronJob controller, or you want to retry
+reconciliation at a custom poll interval).</p>
+</li>
+</ol>
+<p>It’s a <a href=https://groups.google.com/g/operator-framework/c/K7zwQiCJVYg/m/03NT2HYeCAAJ>matter of
+preference</a>
+whether your <code>Reconcile()</code> function should make as much progress as possible in
+a single run; or, return early every time you change something and requeue
+itself again. You’ll see the earlier approach is more unit-test friendly and
+what you’ll find more frequently in the open-source controllers because if your
+event triggers are set up correctly, the object will get requeued anyway.</p>
+<h2 id=workqueueresync-mechanics>Workqueue/resync mechanics</h2>
+<p>OpenKruise has an <a href=https://openkruise.io/blog/learning-concurrent-reconciling/>article about workqueue mechanics</a>, go read
+that. I frequently see beginners not relying on assumptions like an object
+is guaranteed to be reconciled at the same time in different workers, so they
+end up implementing unnecessary locking mechanisms in their controllers.</p>
+<p>Similarly, beginners frequently don’t understand <em>when</em> and <em>how many times</em> an
+object gets reconciled. For example, when your controller updates the object
+it’s working on, it’ll be requeued for a reconciliation immediately again
+(because the update you made triggers watch event).</p>
+<p>Even when no objects were updated, all watched resources will be requeued
+periodically to get reconciled again (called “resync” configured via
+<code>SyncPeriod</code> option). This is the default behavior since the controllers may
+miss watch events (very rare), or skip processing some events during leadership
+change. But this behavior causes you to do a full reconciliation of all objects
+cached.<sup id=fnref:4><a href=#fn:4 class=footnote-ref role=doc-noteref>4</a></sup> So by default, your controller should assume it’ll reconcile the
+entire world periodically.</p>
+<p><strong>Real-world story:</strong> We had a controller that managed several thousand objects
+and it did a full resync every 20 minutes. Every object took several seconds to
+reconcile. So any time a client created or updated an object, it would not get
+reconciled until many minutes later, as it goes to the back of the workqueue
+among. If this happened during full resync or controller startup, it took
+many minutes until any work was done on this object.</p>
+<p>Starting with controller-runtime v0.20 has
+<a href=https://github.com/kubernetes-sigs/controller-runtime/releases/tag/v0.20.0>introduced</a>
+a <a href=https://github.com/alvaroaleman/controller-runtime/blob/bd6eede09a6d6fd3eebb374ee62c9338886a7e13/designs/priorityqueue.md>priority
+queue</a>
+implementation for the workqueue. This would deprioritize reconciliation of
+objects that were not edge-triggered (i.e. due to an create/update etc.) and
+make the controller more responsive during full resyncs and controller startups.</p>
+<p>That’s why understanding the workqueue semantics, worker count
+(<code>MaxConcurrentReconciles</code>) and monitoring your controller’s reconciliation
+latency, workqueue depth and active workers count is super important to know if
+your controller scales or not.</p>
+<h2 id=expectations-pattern>Expectations pattern</h2>
+<p>We discussed above that controller-runtime client serves the <em>reads</em> from an
+informer cache, and doesn’t query the API server except during the
+startup/resyncs.</p>
+<p>This cache is kept up-to-date based on the received “watch” events from the API
+server. Therefore, your controller will almost certainly read stale data at some
+point, since the watch events arrive asynchronously after the writes you make.
+Cached clients don’t offer <a href=https://arpitbhayani.me/blogs/read-your-write-consistency/>read-your-writes
+consistency</a>.</p>
+<p>This means you need to program your <code>Reconcile()</code> method with this assumption at
+all times. This is not at all intuitive, but a reality when you work with
+a cached client. I’ll give several real-world examples:</p>
+<p><strong>Example 1:</strong> You’re implementing the <code>ReplicaSet</code> controller. Controller sees
+*a
+ReplicaSet with <code>replicas: 5</code>, so it lists the pods with <code>client.List</code> (which
+is served from the cache), and you get 3 Pods. It turns out the informer cache
+wasn’t up-to-date, but the API actually had 5 pods. Your controller creates 2
+more pods, now you have 7 Pods. Definitely not what you wanted.</p>
+<p><strong>Example 2:</strong> Now you’re scaling down a ReplicaSet from 5 to 3. You list the
+Pods, you see 5 Pods, you delete 2 Pods, and next time you list the Pods again,
+you still see, you delete another 2 Pods. If your deletion logic is not
+deterministic (e.g. sorting Pods by name), you scaled from 5 to 1
+—definitely not what you wanted.</p>
+<p><strong>Example 3:</strong> For every object kind=<code>A</code>, you create an object kind=<code>B</code>. When
+<code>A</code> gets updated, you update <code>B</code>. The update succeeds, but next time you reconcile
+<code>A</code> again, you don’t see an updated version of <code>B</code>, so you update <code>B</code> to the
+goal state again, and you get a <code>Conflict</code> error because you’re updating the old
+version of the object. But you already updated it, why update again?</p>
+<p>If you don’t know how to solve these problems in your controller, it’s likely
+because you haven’t seen the “expectations” pattern before.</p>
+<p>In this case, controllers need to do in memory bookkeeping of their expectations
+that resulted from the successful writes they made.
+Once an expectation is recorded, the controller knows it needs to wait for the
+cache to catch up (which will trigger another reconciliation), and not do its
+job based on the stale result it sees from the cache.</p>
+<p>You can see many core controllers <a href=https://github.com/kubernetes/kubernetes/blob/a882a2bf50e630a9ffccbd02b8f759ea51de1c8f/pkg/controller/controller_utils.go#L119-L132>use this
+pattern</a>,
+and Elastic operator also has a <a href=https://github.com/elastic/cloud-on-k8s/blob/6c1bf954555e5a65a18a17450ccddab46ed7e5a5/pkg/controller/common/expectations/expectations.go#L16-L78>great
+explanation</a>
+alongside their implementation. We implemented a couple of variants of these
+at LinkedIn ourselves.</p>
+<h2 id=conclusion>Conclusion</h2>
+<p>Usually when you have controller development questions, join the Kubernetes
+slack and ask in the #controller-runtime channel. The maintainers are very
+helpful! If you’re looking for a good controller implementation, I recommend
+studying the <a href=https://github.com/kubernetes-sigs/cluster-api/>Cluster API</a>
+codebase. Also, Operator SDK has a <a href=https://sdk.operatorframework.io/docs/best-practices/best-practices/>best practices
+guide</a> you
+should check out.</p>
+<p>I’m not the most experienced person to write a detailed guide on this, but I’ll
+be writing more about beginner pitfalls and controller development anti-patterns.</p>
+<p>At LinkedIn we use a controller development exercise <a href=https://twitter.com/diptanu>a former
+colleague</a> came up with to onboard new engineers to
+get them to understand the controller machinery. This exercise touches many
+aspects of controller development and gets people familiar with core Kubernetes
+APIs:</p>
+<blockquote>
+<p><strong>Exercise:</strong>
+Implement a SequentialJob API and controller. The API should
+allow users to specify a series of run-to-completion (batch job) container
+images to run sequentially.</p>
+<p><strong>Follow up questions:</strong></p>
+<ul>
+<li><em>How do users specify the list of containers? (Do you use the core types?)</em></li>
+<li><em>Do you report status? How is status calculated? How do you surface job failures?</em></li>
+<li><em>Where do you validate user inputs? Where do you report reconciliation failures?</em></li>
+<li><em>What happens if the SequentialJob changes while the jobs are running?</em></li>
+<li><em>How are the child resources you created are cleaned up?</em></li>
+</ul>
+</blockquote>
+<p>I hope this article helps you be a better controller developer. If you feel like
+this sort of work resonates with you, we’re usually hiring nowadays <a href=https://www.linkedin.com/jobs/view/4118956306/>[1]</a>
+[<a href=https://www.linkedin.com/jobs/view/4033362822/>2</a>] so reach out to me for a referral!</p>
+<p><em>Thanks to Mike Helmick for reading drafts of this article and giving feedback.</em></p>
+<div class=footnotes role=doc-endnotes>
+<hr>
+<ol>
+<li id=fn:1>
+<p>In distributed systems, “success” is not an interesting case. A controller
+seeming to work okay is not an indicator of much. The hard work is designing
+for scale and time, understanding failure modes, proving correctness in the edge
+cases.&nbsp;<a href=#fnref:1 class=footnote-backref role=doc-backlink>↩︎</a></p>
+</li>
+<li id=fn:2>
+<p>See APIs like ConfigMap, Secret, ValidatingWebhookConfiguration.&nbsp;<a href=#fnref:2 class=footnote-backref role=doc-backlink>↩︎</a></p>
+</li>
+<li id=fn:3>
+<p>This example assumes the controller doesn’t need to periodically sync
+with the external API to correct potentially drifted configuration (e.g.
+updates made out of band). Whether controllers should do this or not entirely
+depends on your business case. Here is a Bluesky thread
+<a href=https://bsky.app/profile/ahmet.dev/post/3lftj5gnzmk2c>[1]</a>]
+<a href=https://bsky.app/profile/thock.in/post/3lfuq7huj2s2j>[2]</a> about this topic if
+it interests you.&nbsp;<a href=#fnref:3 class=footnote-backref role=doc-backlink>↩︎</a></p>
+</li>
+<li id=fn:4>
+<p>Note that full periodic resyncs can overload API Servers <a href=https://github.com/kubernetes/enhancements/tree/master/keps/sig-api-machinery/3157-watch-list#motivation>prior to
+Kubernetes
+v1.27</a>
+(when your controller watches high-cardinality resources like Pods) as the List
+calls are quite expensive in kube-apiserver (although recent versions <a href=https://github.com/kubernetes/enhancements/blob/master/keps/sig-api-machinery/3157-watch-list/README.md#summary>addressed
+this</a>,
+with more improvements <a href=https://github.com/kubernetes/enhancements/issues/4988>on the
+way</a>). Uber mentioned in
+one of their talks they don’t do a full list from kube-apiserver, as the reason
+why some objects may miss reconciliation is that the events get dropped during
+leadership change, not because the watch stream is missing events. So, instead
+of using <code>SyncPeriod</code> which does a full List call, they instead requeue all
+objects that are already in cache.&nbsp;<a href=#fnref:4 class=footnote-backref role=doc-backlink>↩︎</a></p>
+</li>
+</ol>
+</div>
+ 
+ 
+ </div>
+ </div>
+ 
+ <footer class=profile>
+ <div class="container pt-3 pt-lg-5">
+ <div class="row col-12 col-lg-8 col-xl-7 pr-1">
+ <h3>Ahmet Alp Balkan</h3>
+ <p>
+ I'm a software engineer at LinkedIn's
+ Kubernetes-based compute infrastructure team.
+ In the past, I've worked at Twitter, Google Cloud and
+ Microsoft Azure on containers and Kubernetes.
+ In my spare time, I <a href=https://github.com/ahmetb>maintain</a>
+ several tools in the Kubernetes open source ecosystem.
+ </p>
+ <a role=button class="btn btn-sm py-1 px-3 btn-outline-secondary" href=https://ahmet.im/>About me</a>&nbsp;
+ <a role=button class="btn btn-sm py-1 px-3 btn-outline-secondary hidden-md-down" rel=home href=https://ahmet.im/blog/>Other articles</a>&nbsp;
+ <a role=button class="btn btn-sm py-1 px-3 btn-outline-secondary" href=https://bsky.app/profile/ahmet.dev>Follow on Bluesky</a>&nbsp;
+ <a role=button class="btn btn-sm py-1 px-3 btn-outline-secondary" href=https://twitter.com/ahmetb>Follow on <b>𝕏</b></a>&nbsp;
+ </div>
+ </div>
+ </footer>
+</article>
+ 
+ 
+ 
+ 
+ 
+ 
+<deepl-input-controller><template shadowrootmode=open><div dir=ltr><div class="dl-input-translation-container svelte-95aucy"><div></div></div></div></template></deepl-input-controller><script data-template-shadow-root>(()=>{document.currentScript.remove();processNode(document);function processNode(node){node.querySelectorAll("template[shadowrootmode]").forEach(element=>{let shadowRoot = element.parentElement.shadowRoot;if (!shadowRoot) {try {shadowRoot=element.parentElement.attachShadow({mode:element.getAttribute("shadowrootmode"),delegatesFocus:element.getAttribute("shadowrootdelegatesfocus")!=null,clonable:element.getAttribute("shadowrootclonable")!=null,serializable:element.getAttribute("shadowrootserializable")!=null});shadowRoot.innerHTML=element.innerHTML;element.remove()} catch (error) {} if (shadowRoot) {processNode(shadowRoot)}}})}})()</script>
