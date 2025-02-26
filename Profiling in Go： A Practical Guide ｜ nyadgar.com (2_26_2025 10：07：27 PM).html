@@ -1,0 +1,582 @@
+<!DOCTYPE html> <html lang=en-us dir=ltr data-lt-installed=true><!--
+ Page saved with SingleFile 
+ url: https://nyadgar.com/posts/go-profiling-like-a-pro/ 
+ saved date: Wed Feb 26 2025 22:07:27 GMT+0100 (Central European Standard Time)
+--><meta charset=utf-8>
+<meta name=viewport content="width=device-width">
+<title>Profiling in Go: A Practical Guide | nyadgar.com</title>
+<meta name=referrer content=no-referrer><link type=image/x-icon rel="shortcut icon" href=data:, data-sf-original-href=https://nyadgar.com/favicon.ico><link rel=canonical href=https://nyadgar.com/posts/go-profiling-like-a-pro/><meta http-equiv=content-security-policy content="default-src 'none'; font-src 'self' data:; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self' data:; script-src 'unsafe-inline' data:; object-src 'self' data:; frame-src 'self' data:;"><style>img[src="data:,"],source[src="data:,"]{display:none!important}</style></head>
+ <body>
+ <header>
+ <nav class=manu>
+ <ul>
+ <li><a href=https://nyadgar.com/>Home</a></li>
+ <li>
+ <a href=https://nyadgar.com/tags/system-design/>System Design</a>
+ </li>
+ <li>
+ <a href=https://nyadgar.com/tags/software-engineering/>Software Engineering</a>
+ </li>
+ </ul>
+ </nav>
+ <details>
+ <summary>Menu</summary>
+ <nav>
+ <ul>
+ <li><a href=https://nyadgar.com/>Home</a></li>
+ <li>
+ <a href=https://nyadgar.com/tags/system-design/>System Design</a>
+ </li>
+ <li>
+ <a href=https://nyadgar.com/tags/software-engineering/>Software Engineering</a>
+ </li>
+ </ul>
+ </nav>
+ </details>
+</header>
+ <div class=flex-vert>
+ <div class=container>
+ <div class=sidebar><div class=toc>
+ 
+ <h5>On this page <a href=#top>(Top)</a> </h5>
+ <nav id=TableOfContents>
+ <ul>
+ <li><a href=#the-program-well-be-profiling>The program we’ll be profiling</a></li>
+ <li><a href=#profiling-with-runtimepprof>Profiling with <code>runtime/pprof</code></a>
+ <ul>
+ <li><a href=#profiling-cpu-usage>Profiling CPU usage</a></li>
+ <li><a href=#profiling-memory-usage>Profiling memory usage</a></li>
+ </ul>
+ </li>
+ <li><a href=#analyzing-the-cpu-profile>Analyzing the CPU profile</a>
+ <ul>
+ <li><a href=#running-go-tool-pprof>Running <code>go tool pprof</code></a></li>
+ <li><a href=#exploring-topn>Exploring <code>topN</code></a></li>
+ <li><a href=#exploring-the-graph>Exploring the graph</a></li>
+ </ul>
+ </li>
+ <li><a href=#analyzing-the-memory-profile>Analyzing the memory profile</a>
+ <ul>
+ <li><a href=#exploring-list-source-code-analysis>Exploring <code>list</code> (source code analysis)</a></li>
+ </ul>
+ </li>
+ <li><a href=#optimizing-the-program>Optimizing the program</a></li>
+ <li><a href=#profiling-a-running-server>Profiling a running server</a>
+ <ul>
+ <li><a href=#using-nethttppprof>Using <code>net/http/pprof</code></a></li>
+ </ul>
+ </li>
+ <li><a href=#summary>Summary</a></li>
+ </ul>
+</nav> 
+</div>
+</div>
+ <div class=content>
+<h1 class=post-title>Profiling in Go: A Practical Guide</h1>
+ 
+<a href=mailto:noam.g4@gmail.com>By Noam Yadgar</a>
+ 
+<time datetime=2024-04-09T15:50:12+02:00> at April 9, 2024</time>
+ 
+ <div>
+ 
+ <a href=https://nyadgar.com/tags/go/>#go</a>
+ <a href=https://nyadgar.com/tags/runtime/>#runtime</a>
+ <a href=https://nyadgar.com/tags/cpu/>#cpu</a>
+ <a href=https://nyadgar.com/tags/memory/>#memory</a>
+ <a href=https://nyadgar.com/tags/pprof/>#pprof</a>
+ <a href=https://nyadgar.com/tags/diagnostics/>#diagnostics</a>
+ <a href=https://nyadgar.com/tags/software-engineering/>#software-engineering</a>
+ <a href=https://nyadgar.com/tags/optimization/>#optimization</a>
+ <a href=https://nyadgar.com/tags/profile/>#profile</a>
+ </div>
+ <p>Profiling is an underrated skill among software-engineers and it’s often overlooked by even very skilled developers. Profiling a program, is essentially measuring CPU and memory usage to spot bottlenecks, memory leaks, and other performance issues. Knowing how profile a program and interpret the result can direct us to where exactly our program is suffering from poor performance, and focus our efforts on optimizing those specific parts. In this article, we’ll be profiling a real-world Go program. We’ll learn how to interpret the results, draw conclusions, and optimize the program accordingly.</p>
+<h2 id=the-program-well-be-profiling>The program we’ll be profiling</h2>
+<p>What’s the hottest place on Earth? What is the coldest? Our program interacts with the <a href=https://www.kaggle.com/datasets/shishu1421/global-temperature/data target=_blank rel=noopener>Global Temperature</a>
+ dataset, which contains a hundred years of monthly average temperatures of about 85K coordinates around the globe. So in terms of records: <span><span class=katex><span class=katex-mathml><math xmlns=http://www.w3.org/1998/Math/MathML><semantics><mrow><mn>85</mn><mo separator=true>,</mo><mn>000</mn><mo>×</mo><mn>12</mn><mo>×</mo><mn>100</mn><mo>=</mo><mn>102</mn><mo separator=true>,</mo><mn>000</mn><mo separator=true>,</mo><mn>000</mn></mrow><annotation encoding=application/x-tex>85,000 \times 12 \times 100 = 102,000,000</annotation></semantics></math></span><span class=katex-html aria-hidden=true><span class=base><span class=strut></span><span class=mord>85</span><span class=mpunct>,</span><span class=mspace></span><span class=mord>000</span><span class=mspace></span><span class=mbin>×</span><span class=mspace></span></span><span class=base><span class=strut></span><span class=mord>12</span><span class=mspace></span><span class=mbin>×</span><span class=mspace></span></span><span class=base><span class=strut></span><span class=mord>100</span><span class=mspace></span><span class=mrel>=</span><span class=mspace></span></span><span class=base><span class=strut></span><span class=mord>102</span><span class=mpunct>,</span><span class=mspace></span><span class=mord>000</span><span class=mpunct>,</span><span class=mspace></span><span class=mord>000</span></span></span></span></span> records <em>(about 1.1Gb)</em>. Our program reads this dataset and outputs a table of all coordinates with their <strong>total average</strong> temperature over the years.</p>
+<p>Let’s look at the data first:</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>ls
+</span></span><span><span>air_temp.1900  air_temp.1911  air_temp.1922  air_temp.1933  air_temp.1944  air_temp.1955  air_temp.1966  air_temp.1977
+</span></span><span><span>air_temp.1901  air_temp.1912  air_temp.1923  air_temp.1934  air_temp.1945  air_temp.1956  air_temp.1967  air_temp.1978
+</span></span><span><span>air_temp.1902  air_temp.1913  air_temp.1924  air_temp.1935  air_temp.1946  air_temp.1957  air_temp.1968  air_temp.1979
+</span></span><span><span>air_temp.1903  air_temp.1914  air_temp.1925  air_temp.1936  air_temp.1947  air_temp.1958  air_temp.1969  air_temp.1980 ...
+</span></span></code></pre></div><p>Each file contains the monthly average temperatures of the year per coordinates.</p>
+<p>The content of each file is as follows (I will take the first 5 lines of one year):</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>head -n <span>5</span> air_temp.1990
+</span></span><span><span>-179.750  71.250   -24.7   -29.9   -24.4   -12.5    -2.6     0.4     2.2     4.2    -0.9    -5.9   -15.4   -25.5
+</span></span><span><span>-179.750  68.750   -29.9   -32.5   -22.5   -10.9    -3.7     0.7     2.8     3.6    -1.1    -8.7   -17.1   -27.5
+</span></span><span><span>-179.750  68.250   -31.0   -33.7   -23.6   -11.9    -4.5     0.9     3.3     3.6    -1.7    -9.7   -18.3   -28.2
+</span></span><span><span>-179.750  67.750   -30.1   -33.9   -23.3   -11.5    -3.2     3.6     6.8     6.0    -0.2    -9.0   -18.6   -27.0
+</span></span><span><span>-179.750  67.250   -32.0   -37.9   -26.8   -14.5    -5.2     3.6     7.2     5.7    -1.9   -11.7   -22.0   -29.4
+</span></span></code></pre></div><p>The first two columns are the coordinates, and the rest are the monthly average temperatures.</p>
+<p>Here is our full program:</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kn>package</span> <span class=nx>main</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kn>import</span> <span class=p>(</span>
+</span></span><span class=line><span class=cl>	<span class=s>"encoding/csv"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"flag"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"fmt"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"io"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"os"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"strconv"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"strings"</span>
+</span></span><span class=line><span class=cl><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>type</span> <span class=nx>record</span> <span class=kd>struct</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>lon</span><span class=p>,</span> <span class=nx>lat</span> <span class=kt>float64</span>
+</span></span><span class=line><span class=cl>	<span class=nx>temps</span>    <span class=p>[</span><span class=mi>12</span><span class=p>]</span><span class=kt>float64</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>files</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>ReadDir</span><span class=p>(</span><span class=s>"data"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>rawData</span> <span class=o>:=</span> <span class=nb>make</span><span class=p>(</span><span class=kd>map</span><span class=p>[</span><span class=kt>string</span><span class=p>][]</span><span class=kt>byte</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>file</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>files</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>f</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Open</span><span class=p>(</span><span class=s>"data/"</span> <span class=o>+</span> <span class=nx>file</span><span class=p>.</span><span class=nf>Name</span><span class=p>())</span>
+</span></span><span class=line><span class=cl>		<span class=nx>rawData</span><span class=p>[</span><span class=nx>file</span><span class=p>.</span><span class=nf>Name</span><span class=p>()],</span> <span class=nx>_</span> <span class=p>=</span> <span class=nx>io</span><span class=p>.</span><span class=nf>ReadAll</span><span class=p>(</span><span class=nx>f</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=nx>f</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>parsed</span> <span class=o>:=</span> <span class=nf>parseData</span><span class=p>(</span><span class=nx>rawData</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=nx>output</span> <span class=o>:=</span> <span class=nb>make</span><span class=p>(</span><span class=kd>map</span><span class=p>[</span><span class=kt>string</span><span class=p>][]</span><span class=kt>float64</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>v</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>parsed</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=k>for</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>r</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>v</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>			<span class=nx>key</span> <span class=o>:=</span> <span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>"%.3f:%.3f"</span><span class=p>,</span> <span class=nx>r</span><span class=p>.</span><span class=nx>lat</span><span class=p>,</span> <span class=nx>r</span><span class=p>.</span><span class=nx>lon</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>			<span class=nx>output</span><span class=p>[</span><span class=nx>key</span><span class=p>]</span> <span class=p>=</span> <span class=nb>append</span><span class=p>(</span><span class=nx>output</span><span class=p>[</span><span class=nx>key</span><span class=p>],</span> <span class=nx>r</span><span class=p>.</span><span class=nx>temps</span><span class=p>[:]</span><span class=o>...</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>outputFile</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Create</span><span class=p>(</span><span class=s>"output.csv"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=nx>w</span> <span class=o>:=</span> <span class=nx>csv</span><span class=p>.</span><span class=nf>NewWriter</span><span class=p>(</span><span class=nx>outputFile</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>defer</span> <span class=nx>w</span><span class=p>.</span><span class=nf>Flush</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=k>defer</span> <span class=nx>outputFile</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>coordinates</span><span class=p>,</span> <span class=nx>yearlyTemps</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>output</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>row</span> <span class=o>:=</span> <span class=p>[]</span><span class=kt>string</span><span class=p>{</span><span class=nx>coordinates</span><span class=p>,</span> <span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>"%.2f"</span><span class=p>,</span> <span class=nf>average</span><span class=p>(</span><span class=nx>yearlyTemps</span><span class=p>))}</span>
+</span></span><span class=line><span class=cl>		<span class=nx>w</span><span class=p>.</span><span class=nf>Write</span><span class=p>(</span><span class=nx>row</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>parseData</span><span class=p>(</span><span class=nx>input</span> <span class=kd>map</span><span class=p>[</span><span class=kt>string</span><span class=p>][]</span><span class=kt>byte</span><span class=p>)</span> <span class=kd>map</span><span class=p>[</span><span class=kt>string</span><span class=p>][]</span><span class=nx>record</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>m</span> <span class=o>:=</span> <span class=nb>make</span><span class=p>(</span><span class=kd>map</span><span class=p>[</span><span class=kt>string</span><span class=p>][]</span><span class=nx>record</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>filename</span><span class=p>,</span> <span class=nx>v</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>input</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>lines</span> <span class=o>:=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>Split</span><span class=p>(</span><span class=nb>string</span><span class=p>(</span><span class=nx>v</span><span class=p>),</span> <span class=s>"\n"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=k>for</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>line</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>lines</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>			<span class=nx>seg</span> <span class=o>:=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>Fields</span><span class=p>(</span><span class=nx>line</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>			<span class=k>if</span> <span class=nb>len</span><span class=p>(</span><span class=nx>seg</span><span class=p>)</span> <span class=o>!=</span> <span class=mi>14</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>				<span class=k>continue</span>
+</span></span><span class=line><span class=cl>			<span class=p>}</span>
+</span></span><span class=line><span class=cl>			<span class=nx>lon</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>strconv</span><span class=p>.</span><span class=nf>ParseFloat</span><span class=p>(</span><span class=nx>seg</span><span class=p>[</span><span class=mi>0</span><span class=p>],</span> <span class=mi>64</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>			<span class=nx>lat</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>strconv</span><span class=p>.</span><span class=nf>ParseFloat</span><span class=p>(</span><span class=nx>seg</span><span class=p>[</span><span class=mi>1</span><span class=p>],</span> <span class=mi>64</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>			<span class=nx>temps</span> <span class=o>:=</span> <span class=p>[</span><span class=mi>12</span><span class=p>]</span><span class=kt>float64</span><span class=p>{}</span>
+</span></span><span class=line><span class=cl>			<span class=k>for</span> <span class=nx>i</span> <span class=o>:=</span> <span class=mi>2</span><span class=p>;</span> <span class=nx>i</span> <span class=p>&lt;</span> <span class=mi>14</span><span class=p>;</span> <span class=nx>i</span><span class=o>++</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>				<span class=nx>t</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>strconv</span><span class=p>.</span><span class=nf>ParseFloat</span><span class=p>(</span><span class=nx>seg</span><span class=p>[</span><span class=nx>i</span><span class=p>],</span> <span class=mi>64</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>				<span class=nx>temps</span><span class=p>[</span><span class=nx>i</span><span class=o>-</span><span class=mi>2</span><span class=p>]</span> <span class=p>=</span> <span class=nx>t</span>
+</span></span><span class=line><span class=cl>			<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>			<span class=nx>m</span><span class=p>[</span><span class=nx>filename</span><span class=p>]</span> <span class=p>=</span> <span class=nb>append</span><span class=p>(</span><span class=nx>m</span><span class=p>[</span><span class=nx>filename</span><span class=p>],</span> <span class=nx>record</span><span class=p>{</span><span class=nx>lon</span><span class=p>,</span> <span class=nx>lat</span><span class=p>,</span> <span class=nx>temps</span><span class=p>})</span>
+</span></span><span class=line><span class=cl>		<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=k>return</span> <span class=nx>m</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>average</span><span class=p>(</span><span class=nx>input</span> <span class=p>[]</span><span class=kt>float64</span><span class=p>)</span> <span class=kt>float64</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=kd>var</span> <span class=nx>sum</span> <span class=kt>float64</span>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>v</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>input</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>sum</span> <span class=o>+=</span> <span class=nx>v</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=k>return</span> <span class=nx>sum</span> <span class=o>/</span> <span class=nb>float64</span><span class=p>(</span><span class=nb>len</span><span class=p>(</span><span class=nx>input</span><span class=p>))</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p>If we’ll run this program, it will take few seconds and output a file, named <code>output.csv</code> with the results.
+ 
+ <div class="box box-shortcode info">
+ <span class="icon-box baseline">
+ 
+ </span>
+ <p>On my machine it took about 14 seconds.
+<em>CPU: Intel i7-9700 (8) @ 4.700GHz</em></p>
+ </div>
+<p></p>
+<p>Here are the first few lines of the output file (sorted from highest to lowest):</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>column -t -s, output.csv | sort -k2 -nr | head -n <span>5</span>
+</span></span><span><span>-9.750:-75.250    34.99
+</span></span><span><span>-10.250:-75.250   33.79
+</span></span><span><span>-10.250:-74.750   32.98
+</span></span><span><span>19.250:41.250     31.83
+</span></span><span><span>-7.250:31.750     31.51
+</span></span></code></pre></div><h2 id=profiling-with-runtimepprof>Profiling with <code>runtime/pprof</code></h2>
+<p>Go is equipped with an incredible profiling tool called <code>runtime/pprof</code>. With this library, we can easily profile our program’s CPU and memory usage.</p>
+<h3 id=profiling-cpu-usage>Profiling CPU usage</h3>
+<p>CPU profiling is a time-based measurement. We’d like to know, how long does it take for each function to execute. When we perform CPU profiling with <code>runtime/pprof</code>, our program will be briefly paused at regular intervals (100/per second) to collect samples. The more samples we collect, the more accurate the result will be.</p>
+<p>Since our program is a single short-living procedure with a defined end, we can profile the entire program. Here is how we can do it:</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kn>import</span> <span class=p>(</span>
+</span></span><span class=line><span class=cl>  <span class=s>"flag"</span>
+</span></span><span class=line><span class=cl>  <span class=s>"os"</span>
+</span></span><span class=line><span class=cl>  <span class=s>"runtime/pprof"</span>
+</span></span><span class=line><span class=cl>  <span class=c1>//... other imports
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>var</span> <span class=nx>cpuprofile</span> <span class=p>=</span> <span class=nx>flag</span><span class=p>.</span><span class=nf>String</span><span class=p>(</span><span class=s>"cpuprofile"</span><span class=p>,</span> <span class=s>""</span><span class=p>,</span> <span class=s>"write cpu profile to this file"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>flag</span><span class=p>.</span><span class=nf>Parse</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=o>*</span><span class=nx>cpuprofile</span> <span class=o>!=</span> <span class=s>""</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>cpuf</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Create</span><span class=p>(</span><span class=o>*</span><span class=nx>cpuprofile</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=nx>pprof</span><span class=p>.</span><span class=nf>StartCPUProfile</span><span class=p>(</span><span class=nx>cpuf</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=k>defer</span> <span class=nx>cpuf</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>		<span class=k>defer</span> <span class=nx>pprof</span><span class=p>.</span><span class=nf>StopCPUProfile</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=c1>// ...
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=p>}</span>
+</span></span></code></pre></div><p>When we run our program with the <code>-cpuprofile</code> flag, it will start CPU profiling and write the results to the specified file.</p>
+<h3 id=profiling-memory-usage>Profiling memory usage</h3>
+<p>While CPU profiling is integrating the collection of samples over a time period, memory profiling is a snapshot of the memory state at a specific moment. If possible, we should find a strategic point in our program to take the snapshot. In our case, it looks like we can get a lot of information if we place it just before we write rows to the output file. Let’s add it as well:</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=c1>// ...
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=kd>var</span> <span class=p>(</span>
+</span></span><span class=line><span class=cl>	<span class=nx>cpuprofile</span> <span class=p>=</span> <span class=nx>flag</span><span class=p>.</span><span class=nf>String</span><span class=p>(</span><span class=s>"cpuprofile"</span><span class=p>,</span> <span class=s>""</span><span class=p>,</span> <span class=s>"write cpu profile to this file"</span><span class=p>)</span>
+</span></span><span class="line hl"><span class=cl>	<span class=nx>memprofile</span> <span class=p>=</span> <span class=nx>flag</span><span class=p>.</span><span class=nf>String</span><span class=p>(</span><span class=s>"memprofile"</span><span class=p>,</span> <span class=s>""</span><span class=p>,</span> <span class=s>"write memory profile to this file"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>flag</span><span class=p>.</span><span class=nf>Parse</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=o>*</span><span class=nx>cpuprofile</span> <span class=o>!=</span> <span class=s>""</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>cpuf</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Create</span><span class=p>(</span><span class=o>*</span><span class=nx>cpuprofile</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=nx>pprof</span><span class=p>.</span><span class=nf>StartCPUProfile</span><span class=p>(</span><span class=nx>cpuf</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=k>defer</span> <span class=nx>cpuf</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>		<span class=k>defer</span> <span class=nx>pprof</span><span class=p>.</span><span class=nf>StopCPUProfile</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=c1>// ... some code
+</span></span></span><span class=line><span class=cl><span class=c1></span>
+</span></span><span class="line hl"><span class=cl>	<span class=k>if</span> <span class=o>*</span><span class=nx>memprofile</span> <span class=o>!=</span> <span class=s>""</span> <span class=p>{</span>
+</span></span><span class="line hl"><span class=cl>		<span class=nx>memf</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Create</span><span class=p>(</span><span class=o>*</span><span class=nx>memprofile</span><span class=p>)</span>
+</span></span><span class="line hl"><span class=cl>		<span class=nx>pprof</span><span class=p>.</span><span class=nf>WriteHeapProfile</span><span class=p>(</span><span class=nx>memf</span><span class=p>)</span>
+</span></span><span class="line hl"><span class=cl>		<span class=nx>memf</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class="line hl"><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>coordinates</span><span class=p>,</span> <span class=nx>yearlyTemps</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>aggregated</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>row</span> <span class=o>:=</span> <span class=p>[]</span><span class=kt>string</span><span class=p>{</span><span class=nx>coordinates</span><span class=p>,</span> <span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>"%.2f"</span><span class=p>,</span> <span class=nf>average</span><span class=p>(</span><span class=nx>yearlyTemps</span><span class=p>))}</span>
+</span></span><span class=line><span class=cl>		<span class=nx>w</span><span class=p>.</span><span class=nf>Write</span><span class=p>(</span><span class=nx>row</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><h2 id=analyzing-the-cpu-profile>Analyzing the CPU profile</h2>
+<p>We can now build our program and run it with the profiling flags</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>go build -o bin main.go
+</span></span><span><span>./bin -cpuprofile<span>=</span>cpu.prof
+</span></span><span><span>./bin -memprofile<span>=</span>mem.prof
+</span></span></code></pre></div><p>
+<div class="box box-shortcode info">
+ <span class="icon-box baseline">
+ 
+ </span>
+ <p>The reason I run the program twice is that I want to profile CPU and memory separately. If we run the program with both flags, the CPU profile will be affected by the memory profiling and vice versa.</p>
+ </div>
+By now, we should have two files: <code>cpu.prof</code> and <code>mem.prof</code>. Let’s analyze the results.<p></p>
+<h3 id=running-go-tool-pprof>Running <code>go tool pprof</code></h3>
+<p>We can launch the Go <code>pprof</code> tool and analyze the results, let’s start with the CPU profile:</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>go tool pprof bin cpu.prof
+</span></span><span><span>File: bin
+</span></span><span><span>Type: cpu
+</span></span><span><span>Time: Apr 7, <span>2024</span> at 5:24pm <span>(</span>IDT<span>)</span>
+</span></span><span><span>Duration: 14.03s, Total samples <span>=</span> 14.05s <span>(</span>100.11%<span>)</span>
+</span></span><span><span>Entering interactive mode <span>(</span>type <span>"help"</span> <span>for</span> commands, <span>"o"</span> <span>for</span> options<span>)</span>
+</span></span><span><span><span>(</span>pprof<span>)</span>
+</span></span></code></pre></div><p>We are now, at the <code>pprof</code> CLI, and your first <em>go to</em> action will be to check <code>topN</code>.</p>
+<h3 id=exploring-topn>Exploring <code>topN</code></h3>
+<p>Let’s see the top 5 most CPU expensive functions:</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span><span>(</span>pprof<span>)</span> top5
+</span></span><span><span>Showing nodes accounting <span>for</span> 7360ms, 52.38% of 14050ms total
+</span></span><span><span>Dropped <span>104</span> nodes <span>(</span>cum &lt;<span>=</span> 70.25ms<span>)</span>
+</span></span><span><span>Showing top <span>5</span> nodes out of <span>72</span>
+</span></span><span><span>      flat  flat%   sum%        cum   cum%
+</span></span><span><span>    2640ms 18.79% 18.79%     2640ms 18.79%  runtime.memmove
+</span></span><span><span>    1820ms 12.95% 31.74%     2560ms 18.22%  strings.Fields
+</span></span><span><span>    1600ms 11.39% 43.13%     1600ms 11.39%  strconv.readFloat
+</span></span><span><span>     800ms  5.69% 48.83%      800ms  5.69%  strconv.<span>(</span>*decimal<span>)</span>.Assign
+</span></span><span><span>     500ms  3.56% 52.38%      500ms  3.56%  strconv.atof64exact
+</span></span></code></pre></div><ul>
+<li><em>Flat</em> - Is the time/percentage spent by the described function call</li>
+<li><em>Cum (cumulative)</em> - Is the time/percentage spent by the functions being called by the described function (self included).</li>
+</ul>
+<p>Looks like <code>runtime.memmove</code>, <code>strings.Fields</code> and <code>strconv.readFloat</code> are pretty expensive.</p>
+<p>To get a better understanding, we can sort <code>top5</code> by <code>cum</code> and see who’s calling those functions</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span><span>(</span>pprof<span>)</span> top5 -cum
+</span></span><span><span>Showing nodes accounting <span>for</span> 0.47s, 3.35% of 14.05s total
+</span></span><span><span>Dropped <span>104</span> nodes <span>(</span>cum &lt;<span>=</span> 0.07s<span>)</span>
+</span></span><span><span>Showing top <span>5</span> nodes out of <span>72</span>
+</span></span><span><span>      flat  flat%   sum%        cum   cum%
+</span></span><span><span>     0.22s  1.57%  1.57%     13.81s 98.29%  main.main
+</span></span><span><span>         <span>0</span>     0%  1.57%     13.81s 98.29%  runtime.main
+</span></span><span><span>     0.11s  0.78%  2.35%      7.51s 53.45%  main.parseData
+</span></span><span><span>     0.02s  0.14%  2.49%      3.28s 23.35%  fmt.Sprintf
+</span></span><span><span>     0.12s  0.85%  3.35%      3.17s 22.56%  strconv.ParseFloat
+</span></span></code></pre></div><p>Notice that <code>runtime.main</code> is taking 98.29% of cumulative time but 0% flat. It makes sense, since everything is being called by <code>runtime.main</code>, however, the function itself doesn’t take any time from the CPU. We can also see functions that we’re calling in our program: <code>main.parseData</code> is our own function, and it takes 7.51 seconds from the entire process. Also, <code>fmt.Sprintf</code> and <code>strconv.ParseFloat</code> are functions that we’re calling in the process.</p>
+<h3 id=exploring-the-graph>Exploring the graph</h3>
+<p>While <code>topN</code> is great, and to be honest, in most cases it will be enough to draw conclusion from, the <code>pprof</code> tool holds some more powerful diagnostic tools. To better understand the call stack, we can look at an interactive graph. There are a few ways for generating this graph - my personal favorite is to spin up a server that bundles all of the <code>pprof</code> commends in a beautiful GUI in the browser.</p>
+<div class="box box-shortcode info">
+ <span class="icon-box baseline">
+ 
+ </span>
+ <p>You might need to install <code>graphviz</code></p>
+ </div>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>go tool pprof -http localhost:6060 bin cpu.prof
+</span></span></code></pre></div><p><img src=data:, alt="cpu profile graph" data-sf-original-src=https://nyadgar.com/posts/go-profiling-like-a-pro/cpu_profile.png></p>
+<p>Okay, that’s a little bit hard to follow, we can use the search bar at the top of this page to narrow down the graph.</p>
+<p>Let’s search for the <code>main.parseData</code> and see why it takes <span><span class=katex><span class=katex-mathml><math xmlns=http://www.w3.org/1998/Math/MathML><semantics><mrow><mn>7.51</mn></mrow><annotation encoding=application/x-tex>7.51</annotation></semantics></math></span><span class=katex-html aria-hidden=true><span class=base><span class=strut></span><span class=mord>7.51</span></span></span></span></span> seconds</p>
+<p><img src=data:, alt="cpu profile narrowed" data-sf-original-src=https://nyadgar.com/posts/go-profiling-like-a-pro/cpu_profile_narrowed.png></p>
+<p>It looks like <code>main.parseData</code> is responsible for most of the CPU consumption. We’ll keep that in mind when we will optimize the code.</p>
+<h2 id=analyzing-the-memory-profile>Analyzing the memory profile</h2>
+<p>Once again, <code>topN</code> is your <em>go to</em> command, only in this case, we’re looking at a memory snapshot of the moment when we called <code>pprof.WriteHeapProfile(memf)</code></p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>go tool pprof bin mem.prof
+</span></span><span><span>File: bin
+</span></span><span><span>Type: inuse_space
+</span></span><span><span>Time: Apr 7, <span>2024</span> at 8:08pm <span>(</span>IDT<span>)</span>
+</span></span><span><span>Entering interactive mode <span>(</span>type <span>"help"</span> <span>for</span> commands, <span>"o"</span> <span>for</span> options<span>)</span>
+</span></span><span><span><span>(</span>pprof<span>)</span> top5
+</span></span><span><span>Showing nodes accounting <span>for</span> 1741.73MB, 99.91% of 1743.23MB total
+</span></span><span><span>Dropped <span>1</span> node <span>(</span>cum &lt;<span>=</span> 8.72MB<span>)</span>
+</span></span><span><span>      flat  flat%   sum%        cum   cum%
+</span></span><span><span> 1194.12MB 68.50% 68.50%  1194.12MB 68.50%  main.parseData
+</span></span><span><span>  547.61MB 31.41% 99.91%  1743.23MB   100%  main.main
+</span></span><span><span>         <span>0</span>     0% 99.91%  1743.23MB   100%  runtime.main
+</span></span></code></pre></div><p>Wow! The same <code>main.parseData</code> is taking 1.2Gb of memory! It also seems like <code>main.main</code> itself, is taking about 0.5Gb. So our CPU issues are being overshadowed by our much bigger memory issues. In fact, the CPU issues are likely connected to the large size of <code>main.parseData</code>, since lots of memory can result in lots of <code>memmove</code> (moving memory), <code>malloc</code> (memory allocations) and <code>mallocgc</code> (garbage collection) operations.</p>
+<h3 id=exploring-list-source-code-analysis>Exploring <code>list</code> (source code analysis)</h3>
+<p>The <code>pprof</code> tool provides such a deep analysis that we can even see the source code of the functions that are consuming the most memory. Let’s see the source code of <code>main.parseData</code> using the <code>list</code> command:</p>
+<div class="box box-shortcode info">
+ <span class="icon-box baseline">
+ 
+ </span>
+ <p>We can even go as deep as the underlying assembly code, but that’s a bit out of scope for this article.</p>
+ </div>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span><span>(</span>pprof<span>)</span> list parseData
+</span></span><span><span>Total: 1.70GB
+</span></span><span><span>ROUTINE <span>========================</span> main.parseData in /home/nyadgar/temp_analysis/main.go
+</span></span><span><span>    1.17GB     1.17GB <span>(</span>flat, cum<span>)</span> 68.50% of Total
+</span></span><span><span>         .          .     68:func parseData<span>(</span>input map<span>[</span>string<span>][]</span>byte<span>)</span> map<span>[</span>string<span>][]</span>record <span>{</span>
+</span></span><span><span>         .          .     69:	m :<span>=</span> make<span>(</span>map<span>[</span>string<span>][]</span>record<span>)</span>
+</span></span><span><span>         .          .     70:	<span>for</span> filename, v :<span>=</span> range input <span>{</span>
+</span></span><span><span>         .          .     71:		lines :<span>=</span> strings.Split<span>(</span>string<span>(</span>v<span>)</span>, <span>"\n"</span><span>)</span>
+</span></span><span><span>         .          .     72:		<span>for</span> _, line :<span>=</span> range lines <span>{</span>
+</span></span><span><span>         .          .     73:			seg :<span>=</span> strings.Fields<span>(</span>line<span>)</span>
+</span></span><span><span>         .          .     74:			<span>if</span> len<span>(</span>seg<span>)</span> !<span>=</span> <span>14</span> <span>{</span>
+</span></span><span><span>         .          .     75:				<span>continue</span>
+</span></span><span><span>         .          .     76:			<span>}</span>
+</span></span><span><span>         .          .     77:			lon, _ :<span>=</span> strconv.ParseFloat<span>(</span>seg<span>[</span>0<span>]</span>, 64<span>)</span>
+</span></span><span><span>         .          .     78:			lat, _ :<span>=</span> strconv.ParseFloat<span>(</span>seg<span>[</span>1<span>]</span>, 64<span>)</span>
+</span></span><span><span>         .          .     79:			temps :<span>=</span> <span>[</span>12<span>]</span>float64<span>{}</span>
+</span></span><span><span>         .          .     80:			<span>for</span> i :<span>=</span> 2; i &lt; 14; i++ <span>{</span>
+</span></span><span><span>         .          .     81:				t, _ :<span>=</span> strconv.ParseFloat<span>(</span>seg<span>[</span>i<span>]</span>, 64<span>)</span>
+</span></span><span><span>         .          .     82:				temps<span>[</span>i-2<span>]</span> <span>=</span> t
+</span></span><span><span>         .          .     83:			<span>}</span>
+</span></span><span><span>         .          .     84:
+</span></span><span><span>    1.17GB     1.17GB     85:			m<span>[</span>filename<span>]</span> <span>=</span> append<span>(</span>m<span>[</span>filename<span>]</span>, record<span>{</span>lon, lat, temps<span>})</span>
+</span></span><span><span>         .          .     86:		<span>}</span>
+</span></span><span><span>         .          .     87:	<span>}</span>
+</span></span><span><span>         .          .     88:
+</span></span><span><span>         .          .     89:	<span>return</span> m
+</span></span><span><span>         .          .     90:<span>}</span>
+</span></span></code></pre></div><p>Well, that’s not surprising. We’re reading the entire dataset into memory and parsing it to a map, This is a good starting point for optimization.</p>
+<p>Let’s also look at the <code>main.main</code> function:</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span><span>(</span>pprof<span>)</span> list main.main
+</span></span><span><span>Total: 1.70GB
+</span></span><span><span>ROUTINE <span>========================</span> main.main in /home/nyadgar/temp_analysis/main.go
+</span></span><span><span>  547.61MB     1.70GB <span>(</span>flat, cum<span>)</span>   100% of Total
+</span></span><span><span>         .          .     24:func main<span>()</span> <span>{</span>
+</span></span><span><span>         .          .     25:	flag.Parse<span>()</span>
+</span></span><span><span>         .          .     26:	<span>if</span> *cpuprofile !<span>=</span> <span>""</span> <span>{</span>
+</span></span><span><span>         .          .     27:		cpuf, _ :<span>=</span> os.Create<span>(</span>*cpuprofile<span>)</span>
+</span></span><span><span>         .          .     28:		pprof.StartCPUProfile<span>(</span>cpuf<span>)</span>
+</span></span><span><span>         .          .     29:		defer cpuf.Close<span>()</span>
+</span></span><span><span>         .          .     30:		defer pprof.StopCPUProfile<span>()</span>
+</span></span><span><span>         .          .     31:	<span>}</span>
+</span></span><span><span>         .          .     32:
+</span></span><span><span>         .          .     33:	files, _ :<span>=</span> os.ReadDir<span>(</span><span>"data"</span><span>)</span>
+</span></span><span><span>         .          .     34:
+</span></span><span><span>         .          .     35:	rawData :<span>=</span> make<span>(</span>map<span>[</span>string<span>][]</span>byte<span>)</span>
+</span></span><span><span>         .          .     36:	<span>for</span> _, file :<span>=</span> range files <span>{</span>
+</span></span><span><span>         .          .     37:		f, _ :<span>=</span> os.Open<span>(</span><span>"data/"</span> + file.Name<span>())</span>
+</span></span><span><span>         .          .     38:		rawData<span>[</span>file.Name<span>()]</span>, _ <span>=</span> io.ReadAll<span>(</span>f<span>)</span>
+</span></span><span><span>         .          .     39:		f.Close<span>()</span>
+</span></span><span><span>         .          .     40:	<span>}</span>
+</span></span><span><span>         .          .     41:
+</span></span><span><span>         .     1.17GB     42:	parsed :<span>=</span> parseData<span>(</span>rawData<span>)</span>
+</span></span><span><span>         .          .     43:	output :<span>=</span> make<span>(</span>map<span>[</span>string<span>][]</span>float64<span>)</span>
+</span></span><span><span>         .          .     44:	<span>for</span> _, v :<span>=</span> range parsed <span>{</span>
+</span></span><span><span>         .          .     45:		<span>for</span> _, r :<span>=</span> range v <span>{</span>
+</span></span><span><span>         .     1.50MB     46:			key :<span>=</span> fmt.Sprintf<span>(</span><span>"%.3f:%.3f"</span>, r.lat, r.lon<span>)</span>
+</span></span><span><span>  547.61MB   547.61MB     47:			output<span>[</span>key<span>]</span> <span>=</span> append<span>(</span>output<span>[</span>key<span>]</span>, r.temps<span>[</span>:<span>]</span>...<span>)</span>
+</span></span></code></pre></div><p>We’re committing a <em>double crime</em> here, by reading the entire dataset into memory and parsing it to a map, and then, we’re creating another new map with pretty much the same data, organized a bit differently.</p>
+<h2 id=optimizing-the-program>Optimizing the program</h2>
+<p>After analyzing the results, we can draw some conclusions:</p>
+<ul>
+<li>We should start by optimizing the <code>main.main</code> and <code>main.parseData</code> functions. Instead of reading the entire dataset into memory, we can read it line by line and parse it on the fly. This way, we can save a lot of memory and CPU time.</li>
+<li>The <code>struct record</code> can be made simpler, by having its coordinates as a single string, and the temperatures as a single <code>float32</code> average.</li>
+<li>We can remove unnecessary duplication of data by skipping some unnecessary steps in the program.</li>
+<li>We should search for better alternatives for <code>strconv.ParseFloat</code> and (if possible) <code>strings.Fields</code> functions.</li>
+<li>There are two <code>strconv.ParseFloat</code> calls we can remove from <code>main.parseData</code> (can you spot them?).</li>
+<li>There are places where we can avoid <code>fmt.Sprintf</code>, which is a relatively expensive function (according to the profiling results).</li>
+</ul>
+<p>Let’s look at the optimized code:</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kn>package</span> <span class=nx>main</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kn>import</span> <span class=p>(</span>
+</span></span><span class=line><span class=cl>	<span class=s>"bufio"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"encoding/csv"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"flag"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"fmt"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"os"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"runtime/pprof"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"strings"</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=s>"github.com/sugawarayuuta/refloat"</span>
+</span></span><span class=line><span class=cl><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>type</span> <span class=nx>record</span> <span class=kd>struct</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>coords</span> <span class=kt>string</span>
+</span></span><span class=line><span class=cl>	<span class=nx>avg</span>    <span class=kt>float32</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>var</span> <span class=p>(</span>
+</span></span><span class=line><span class=cl>	<span class=nx>cpuprofile</span> <span class=p>=</span> <span class=nx>flag</span><span class=p>.</span><span class=nf>String</span><span class=p>(</span><span class=s>"cpuprofile"</span><span class=p>,</span> <span class=s>""</span><span class=p>,</span> <span class=s>"write cpu profile to this file"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=nx>memprofile</span> <span class=p>=</span> <span class=nx>flag</span><span class=p>.</span><span class=nf>String</span><span class=p>(</span><span class=s>"memprofile"</span><span class=p>,</span> <span class=s>""</span><span class=p>,</span> <span class=s>"write memory profile to this file"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>flag</span><span class=p>.</span><span class=nf>Parse</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=o>*</span><span class=nx>cpuprofile</span> <span class=o>!=</span> <span class=s>""</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>cpuf</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Create</span><span class=p>(</span><span class=o>*</span><span class=nx>cpuprofile</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=nx>pprof</span><span class=p>.</span><span class=nf>StartCPUProfile</span><span class=p>(</span><span class=nx>cpuf</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=k>defer</span> <span class=nx>cpuf</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>		<span class=k>defer</span> <span class=nx>pprof</span><span class=p>.</span><span class=nf>StopCPUProfile</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>files</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>ReadDir</span><span class=p>(</span><span class=s>"data"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>aggregated</span> <span class=o>:=</span> <span class=nb>make</span><span class=p>(</span><span class=kd>map</span><span class=p>[</span><span class=kt>string</span><span class=p>][]</span><span class=kt>float32</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>file</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>files</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>f</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Open</span><span class=p>(</span><span class=s>"data/"</span> <span class=o>+</span> <span class=nx>file</span><span class=p>.</span><span class=nf>Name</span><span class=p>())</span>
+</span></span><span class=line><span class=cl>		<span class=nx>scanner</span> <span class=o>:=</span> <span class=nx>bufio</span><span class=p>.</span><span class=nf>NewScanner</span><span class=p>(</span><span class=nx>f</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=k>for</span> <span class=nx>scanner</span><span class=p>.</span><span class=nf>Scan</span><span class=p>()</span> <span class=p>{</span> <span class=c1>// reading line by line
+</span></span></span><span class=line><span class=cl><span class=c1></span>			<span class=k>if</span> <span class=nx>rec</span> <span class=o>:=</span> <span class=nf>parseData</span><span class=p>(</span><span class=nx>scanner</span><span class=p>.</span><span class=nf>Text</span><span class=p>());</span> <span class=nx>rec</span><span class=p>.</span><span class=nx>coords</span> <span class=o>!=</span> <span class=s>""</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>				<span class=nx>aggregated</span><span class=p>[</span><span class=nx>rec</span><span class=p>.</span><span class=nx>coords</span><span class=p>]</span> <span class=p>=</span> <span class=nb>append</span><span class=p>(</span><span class=nx>aggregated</span><span class=p>[</span><span class=nx>rec</span><span class=p>.</span><span class=nx>coords</span><span class=p>],</span> <span class=nx>rec</span><span class=p>.</span><span class=nx>avg</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>			<span class=p>}</span>
+</span></span><span class=line><span class=cl>		<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>		<span class=nx>f</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>outputFile</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Create</span><span class=p>(</span><span class=s>"output.csv"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=nx>w</span> <span class=o>:=</span> <span class=nx>csv</span><span class=p>.</span><span class=nf>NewWriter</span><span class=p>(</span><span class=nx>outputFile</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>defer</span> <span class=nx>w</span><span class=p>.</span><span class=nf>Flush</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=k>defer</span> <span class=nx>outputFile</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=o>*</span><span class=nx>memprofile</span> <span class=o>!=</span> <span class=s>""</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>memf</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Create</span><span class=p>(</span><span class=o>*</span><span class=nx>memprofile</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=nx>pprof</span><span class=p>.</span><span class=nf>WriteHeapProfile</span><span class=p>(</span><span class=nx>memf</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=nx>memf</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>coordinates</span><span class=p>,</span> <span class=nx>yearlyTemps</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>aggregated</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>row</span> <span class=o>:=</span> <span class=p>[]</span><span class=kt>string</span><span class=p>{</span><span class=nx>coordinates</span><span class=p>,</span> <span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>"%.2f"</span><span class=p>,</span> <span class=nf>average</span><span class=p>(</span><span class=nx>yearlyTemps</span><span class=p>))}</span>
+</span></span><span class=line><span class=cl>		<span class=nx>w</span><span class=p>.</span><span class=nf>Write</span><span class=p>(</span><span class=nx>row</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>parseData</span><span class=p>(</span><span class=nx>line</span> <span class=kt>string</span><span class=p>)</span> <span class=nx>record</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>seg</span> <span class=o>:=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>Fields</span><span class=p>(</span><span class=nx>line</span><span class=p>)</span> <span class=c1>// no alternative found for strings.Fields
+</span></span></span><span class=line><span class=cl><span class=c1></span>	<span class=k>if</span> <span class=nb>len</span><span class=p>(</span><span class=nx>seg</span><span class=p>)</span> <span class=o>!=</span> <span class=mi>14</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=k>return</span> <span class=nx>record</span><span class=p>{}</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=kd>var</span> <span class=nx>temp</span> <span class=kt>float32</span> <span class=c1>// we know there are 12 months, we don't need to store all of them as a slice for avg
+</span></span></span><span class=line><span class=cl><span class=c1></span>	<span class=k>for</span> <span class=nx>i</span> <span class=o>:=</span> <span class=mi>2</span><span class=p>;</span> <span class=nx>i</span> <span class=p>&lt;</span> <span class=mi>14</span><span class=p>;</span> <span class=nx>i</span><span class=o>++</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>t</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>refloat</span><span class=p>.</span><span class=nf>ParseFloat</span><span class=p>(</span><span class=nx>seg</span><span class=p>[</span><span class=nx>i</span><span class=p>],</span> <span class=mi>32</span><span class=p>)</span> <span class=c1>// using refloat instead of strconv.ParseFloat
+</span></span></span><span class=line><span class=cl><span class=c1></span>		<span class=nx>temp</span> <span class=o>+=</span> <span class=nb>float32</span><span class=p>(</span><span class=nx>t</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=k>return</span> <span class=nx>record</span><span class=p>{</span><span class=nx>coords</span><span class=p>:</span> <span class=nx>seg</span><span class=p>[</span><span class=mi>1</span><span class=p>]</span> <span class=o>+</span> <span class=s>":"</span> <span class=o>+</span> <span class=nx>seg</span><span class=p>[</span><span class=mi>0</span><span class=p>],</span> <span class=nx>avg</span><span class=p>:</span> <span class=nx>temp</span> <span class=o>/</span> <span class=mi>12</span><span class=p>}</span> <span class=c1>// much simpler record
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>average</span><span class=p>(</span><span class=nx>input</span> <span class=p>[]</span><span class=kt>float32</span><span class=p>)</span> <span class=kt>float32</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=kd>var</span> <span class=nx>sum</span> <span class=kt>float32</span>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>v</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>input</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>sum</span> <span class=o>+=</span> <span class=nx>v</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=k>return</span> <span class=nx>sum</span> <span class=o>/</span> <span class=nb>float32</span><span class=p>(</span><span class=nb>len</span><span class=p>(</span><span class=nx>input</span><span class=p>))</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p>If we run this optimized version, we should see a significant improvement in both CPU and memory usage.</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>go build -o bin main.go
+</span></span><span><span>./bin -memprofile mem.prof
+</span></span><span><span>go tool pprof bin mem.prof
+</span></span><span><span>File: bin
+</span></span><span><span>Type: inuse_space
+</span></span><span><span>Time: Apr 7, <span>2024</span> at 8:55pm <span>(</span>IDT<span>)</span>
+</span></span><span><span>Entering interactive mode <span>(</span>type <span>"help"</span> <span>for</span> commands, <span>"o"</span> <span>for</span> options<span>)</span>
+</span></span><span><span><span>(</span>pprof<span>)</span> top5
+</span></span><span><span>Showing nodes accounting <span>for</span> 57.10MB, 100% of 57.10MB total
+</span></span><span><span>      flat  flat%   sum%        cum   cum%
+</span></span><span><span>   55.60MB 97.37% 97.37%    57.10MB   100%  main.main
+</span></span><span><span>    0.50MB  0.88% 98.25%     0.50MB  0.88%  strings.Fields
+</span></span><span><span>    0.50MB  0.88% 99.12%     0.50MB  0.88%  bufio.<span>(</span>*Scanner<span>)</span>.Text <span>(</span>inline<span>)</span>
+</span></span><span><span>    0.50MB  0.88%   100%        1MB  1.75%  main.parseData
+</span></span><span><span>         <span>0</span>     0%   100%    57.10MB   100%  runtime.main
+</span></span></code></pre></div><p><strong>Amazing</strong>! We’ve managed to reduce the memory consumption from 1.7Gb to 57.1Mb.</p>
+<p>Let’s also check the CPU profile:</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span><span>(</span>pprof<span>)</span> top1 -cum
+</span></span><span><span>Showing nodes accounting <span>for</span> 140ms, 2.05% of 6830ms total
+</span></span><span><span>Dropped <span>103</span> nodes <span>(</span>cum &lt;<span>=</span> 34.15ms<span>)</span>
+</span></span><span><span>Showing top <span>1</span> nodes out of <span>67</span>
+</span></span><span><span>      flat  flat%   sum%        cum   cum%
+</span></span><span><span>     140ms  2.05%  2.05%     5970ms 87.41%  main.main
+</span></span></code></pre></div><p><strong>Looks great</strong>, the CPU consumption is now down to around 7 seconds from 14 seconds!</p>
+<h2 id=profiling-a-running-server>Profiling a running server</h2>
+<p>Up until now, we’ve been profiling a single short-living program. But what if we want to profile an application such as a server? It would be a bit more complicated to pick points for profiling and trigger the profiling process. Also, we might be running the application in an environment where we don’t have access to files that are being created by the profiling process.</p>
+<h3 id=using-nethttppprof>Using <code>net/http/pprof</code></h3>
+<p>The built-in <code>net/http/pprof</code> package provides an HTTP interface for profiling Go applications. It uses the same <code>pprof</code> tool we’ve been using so far, but instead of writing the results to a file, it serves them over HTTP by automatically registering handlers to a HTTP server. All you need to do is to import the package and spin-up a server.</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kn>import</span> <span class=nx>_</span> <span class=s>"net/http/pprof"</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=k>go</span> <span class=kd>func</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nx>log</span><span class=p>.</span><span class=nf>Println</span><span class=p>(</span><span class=nx>http</span><span class=p>.</span><span class=nf>ListenAndServe</span><span class=p>(</span><span class=s>"localhost:6060"</span><span class=p>,</span> <span class=kc>nil</span><span class=p>))</span>
+</span></span><span class=line><span class=cl>  <span class=p>}()</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  <span class=c1>// your application code ...
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=p>}</span>
+</span></span></code></pre></div><p>To profile the heap and CPU usage, we can use the following endpoints:</p>
+<ul>
+<li><code>http://localhost:6060/debug/pprof/heap</code></li>
+<li><code>http://localhost:6060/debug/pprof/profile?seconds=15</code></li>
+</ul>
+<p>In terms of profiling, these endpoints are equivalent to the <code>WriteHeapProfile</code> and <code>StartCPUProfile</code> functions we’ve been using so far. Of course we can’t precisely orchestrate the profiling process as we did before, but rather trying to <em>catch</em> a moment where the server is under heavy load.</p>
+<p>It worth to mention that there are other types of profiling that are more suited to distributed, server-like apps. By using the <code>net/http/pprof</code> package we can easily access:</p>
+<ul>
+<li><code>http://localhost:6060/debug/pprof/block</code> - goroutine blocking profile, to show where goroutines are blocking. (You need <code>runtime.SetBlockProfileRate</code> to enable it)</li>
+<li><code>http://localhost:6060/debug/pprof/mutex</code> - reports locks (You need <code>runtime.SetMutexProfileFraction</code> to enable it)</li>
+<li><code>http://localhost:6060/debug/pprof/trace?secods=10</code> - provides minimal tracing profile which can be accessed using <code>go tool tracer [tracer file]</code></li>
+</ul>
+<p>To see the full list and get familiar with the whole Go diagnostics ecosystem, you can read the <a href=https://go.dev/doc/diagnostics#profiling target=_blank rel=noopener>go article about diagnostics</a>
+.</p>
+<h2 id=summary>Summary</h2>
+<p>One of the hardest tasks in software engineering, is detecting non-obvious, hidden issues. While you will find an error log in a place where you expect a potential error to occur, or look at a histogram of a memory-leaking process, a good profile will top that by being able to show you the exact lines of code, where your program is misbehaving. Latched on our diagnostics tool-belt are debugging, logging, tracing, and metrics. It’s time for you give profiling an honorable place in this tool-belt as well.</p>
+<p>Oh, by the way. Here the coldest place on Earth, according to the dataset: <span><span class=katex><span class=katex-mathml><math xmlns=http://www.w3.org/1998/Math/MathML><semantics><mrow><mo stretchy=false>(</mo><mo>−</mo><mn>79.750</mn><mo separator=true>,</mo><mn>43.750</mn><mo stretchy=false>)</mo></mrow><annotation encoding=application/x-tex>(-79.750,43.750)</annotation></semantics></math></span><span class=katex-html aria-hidden=true><span class=base><span class=strut></span><span class=mopen>(</span><span class=mord>−</span><span class=mord>79.750</span><span class=mpunct>,</span><span class=mspace></span><span class=mord>43.750</span><span class=mclose>)</span></span></span></span></span> With average of <span><span class=katex><span class=katex-mathml><math xmlns=http://www.w3.org/1998/Math/MathML><semantics><mrow><mo>−</mo><mn>57.55</mn><mi mathvariant=normal>°</mi><mi>C</mi></mrow><annotation encoding=application/x-tex>-57.55\degree C</annotation></semantics></math></span><span class=katex-html aria-hidden=true><span class=base><span class=strut></span><span class=mord>−</span><span class=mord>57.55°</span><span class="mord mathnormal">C</span></span></span></span></span> (somewhere in the middle of Antarctica).</p>
+ 
+ </div>
+ <div class=sidebar></div>
+ </div>
+ <div class=spacer></div>
+ <div class=footer><br>
+<a href="https://www.paypal.com/donate/?business=ANXMHC6PED4DG&amp;no_recurring=1&amp;currency_code=USD">Support this blog</a>
+<br>
+<img src=data:, alt data-sf-original-src=https://nyadgar.com/QR%20Code.png>
+<p>Copyright 2025. All rights reserved.</p>
+</div>
+ </div>
+ <div id=cookie-notice>
+ <span>We would like to use third party cookies and scripts to improve the
+ functionality of this website.</span>
+ <a id=cookie-notice-accept class="btn btn-primary btn-sm">Approve</a>
+ <a id=cookie-notice-deny class="btn btn-primary btn-sm">Deny</a>
+ <a href=https://nyadgar.com/privacy class="btn btn-primary btn-sm">More info</a>
+</div>
+ 
+<deepl-input-controller><template shadowrootmode=open><div dir=ltr><div class="dl-input-translation-container svelte-95aucy"><div></div></div></div></template></deepl-input-controller><script data-template-shadow-root>(()=>{document.currentScript.remove();processNode(document);function processNode(node){node.querySelectorAll("template[shadowrootmode]").forEach(element=>{let shadowRoot = element.parentElement.shadowRoot;if (!shadowRoot) {try {shadowRoot=element.parentElement.attachShadow({mode:element.getAttribute("shadowrootmode"),delegatesFocus:element.getAttribute("shadowrootdelegatesfocus")!=null,clonable:element.getAttribute("shadowrootclonable")!=null,serializable:element.getAttribute("shadowrootserializable")!=null});shadowRoot.innerHTML=element.innerHTML;element.remove()} catch (error) {} if (shadowRoot) {processNode(shadowRoot)}}})}})()</script>
