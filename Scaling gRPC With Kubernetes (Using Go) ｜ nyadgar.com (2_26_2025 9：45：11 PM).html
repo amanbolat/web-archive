@@ -1,0 +1,367 @@
+<!DOCTYPE html> <html lang=en-us dir=ltr data-lt-installed=true><!--
+ Page saved with SingleFile 
+ url: https://nyadgar.com/posts/scaling-grpc-with-kubernetes-using-go/ 
+ saved date: Wed Feb 26 2025 21:45:11 GMT+0100 (Central European Standard Time)
+--><meta charset=utf-8>
+<meta name=viewport content="width=device-width">
+<title>Scaling gRPC With Kubernetes (Using Go) | nyadgar.com</title>
+<meta name=referrer content=no-referrer><link type=image/x-icon rel="shortcut icon" href=data:, data-sf-original-href=https://nyadgar.com/favicon.ico><link rel=canonical href=https://nyadgar.com/posts/scaling-grpc-with-kubernetes-using-go/><meta http-equiv=content-security-policy content="default-src 'none'; font-src 'self' data:; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self' data:; script-src 'unsafe-inline' data:; object-src 'self' data:; frame-src 'self' data:;"><style>img[src="data:,"],source[src="data:,"]{display:none!important}</style></head>
+ <body>
+ <header>
+ <nav class=manu>
+ <ul>
+ <li><a href=https://nyadgar.com/>Home</a></li>
+ <li>
+ <a href=https://nyadgar.com/tags/system-design/>System Design</a>
+ </li>
+ <li>
+ <a href=https://nyadgar.com/tags/software-engineering/>Software Engineering</a>
+ </li>
+ </ul>
+ </nav>
+ <details>
+ <summary>Menu</summary>
+ <nav>
+ <ul>
+ <li><a href=https://nyadgar.com/>Home</a></li>
+ <li>
+ <a href=https://nyadgar.com/tags/system-design/>System Design</a>
+ </li>
+ <li>
+ <a href=https://nyadgar.com/tags/software-engineering/>Software Engineering</a>
+ </li>
+ </ul>
+ </nav>
+ </details>
+</header>
+ <div class=flex-vert>
+ <div class=container>
+ <div class=sidebar><div class=toc>
+ 
+ <h5>On this page <a href=#top>(Top)</a> </h5>
+ <nav id=TableOfContents>
+ <ul>
+ <li><a href=#the-tech>The Tech</a>
+ <ul>
+ <li><a href=#http2>HTTP/2</a></li>
+ </ul>
+ </li>
+ <li><a href=#the-problem>The Problem</a>
+ <ul>
+ <li><a href=#idle-pods>Idle Pods</a></li>
+ <li><a href=#autoscaling>Autoscaling</a></li>
+ </ul>
+ </li>
+ <li><a href=#the-test>The Test</a></li>
+ <li><a href=#the-solution>The Solution</a>
+ <ul>
+ <li><a href=#headless-service>Headless service</a></li>
+ <li><a href=#client-side-load-balancing>Client side load-balancing</a></li>
+ <li><a href=#discovery>Discovery</a></li>
+ </ul>
+ </li>
+ </ul>
+</nav> 
+</div>
+</div>
+ <div class=content>
+<h1 class=post-title>Scaling gRPC With Kubernetes (Using Go)</h1>
+ 
+<a href=mailto:noam.g4@gmail.com>By Noam Yadgar</a>
+ 
+<time datetime=2025-01-20T15:50:12+02:00> at January 20, 2025</time>
+ 
+ <div>
+ 
+ <a href=https://nyadgar.com/tags/grpc/>#grpc</a>
+ <a href=https://nyadgar.com/tags/k8s/>#k8s</a>
+ <a href=https://nyadgar.com/tags/kubernetes/>#kubernetes</a>
+ <a href=https://nyadgar.com/tags/go/>#go</a>
+ <a href=https://nyadgar.com/tags/software-engineering/>#software-engineering</a>
+ <a href=https://nyadgar.com/tags/system-design/>#system-design</a>
+ </div>
+ <h2 id=the-tech>The Tech</h2>
+<p><a href=https://grpc.io/ target=_blank rel=noopener><code>gRPC</code></a>
+ is a strong player in microservices-based systems.
+Leveraging <a href=https://protobuf.dev/ target=_blank rel=noopener>Protocol Buffers</a>
+ for well-defined API contracts,
+fast serialization (about <code>X5</code> faster than <code>JSON</code>), smaller payloads, and the use
+of streams (thanks to <code>HTTP/2</code>). It’s easy to see why this technology for
+real-time microservice communication is a good choice.</p>
+<h3 id=http2>HTTP/2</h3>
+<p>Unlike a typical REST API that’s built on top of <code>HTTP/1.1</code>, <code>gRPC</code> is built on top of
+<code>HTTP/2</code>. The most noticeable feature of <code>HTTP/2</code> is the ability to perform <em>server push</em>.
+This feature allows servers to asynchronously <em>push</em> data to the client before the client
+asks for it. <code>gRPC</code> leverages <em>server push</em> to support <em>streams</em>, a key feature that separates <code>gRPC</code>
+from any other <code>HTTP/1.1</code>-based API. Because of that, <code>HTTP/2</code>
+requires a long-lasting <code>TCP</code> connection between the client and the server.</p>
+<h2 id=the-problem>The Problem</h2>
+<p>One thing that makes <code>REST API</code>s exceptionally good at scaling is the notion of being <em>stateless</em>.
+Every single request is essentially a new <code>TCP</code> session that can be routed to any available replica
+of the server. This works perfectly with Kubernetes <em>service</em>’s load-balancing.</p>
+<p>Things are a bit different when it comes to <code>gRPC</code> because each client is keeping the <code>TCP</code>
+connection for its entire lifespan (if not configured otherwise), the load-balancer will try to
+symmetrically spread the load across the clients and servers.</p>
+<pre class=mermaid data-processed=true></pre>
+<p><small><i>Figure 1: The first three clients are symmetrically routed to the server’s three pods.
+The 4th client starts the next cycle.</i></small></p>
+<h3 id=idle-pods>Idle Pods</h3>
+<p>In Figure 1, we have more clients than servers, so even if we may not fully optimize
+the resource utilization of the servers, at least all of them are kept busy. But what happens
+if we have fewer clients than servers? The answer is that some pods will stand idle
+without doing work but waste resources.</p>
+<pre class=mermaid data-processed=true></pre>
+<p><small><i>Figure 2: One client - Three servers.
+The client is making requests only to one server.</i></small></p>
+<h3 id=autoscaling>Autoscaling</h3>
+<p>Autoscaling the number of server replicas might be the solution.
+The truth is - It’s not. Imagine a scenario where you’ve set an autoscaling rule (with
+a tool like <a href=https://keda.sh/ target=_blank rel=noopener>Keda</a>
+) that increases the number of replicas whenever a pod
+reaches 90% of its memory consumption.</p>
+<p>Since there’s no link between the number of clients and the number of servers,
+we can face a scenario in which one client is causing the autoscaling rule to be triggered,
+increasing the number of servers by one; however, it doesn’t use the new replica.</p>
+<p>It wouldn’t make sense to scale the number of servers based on the number of clients either.
+Scaling based on resource utilization is a good rule, but we want to ensure that
+when a pod is too busy, it will share the load with new replicas that the autoscaling tool is adding.</p>
+<h2 id=the-test>The Test</h2>
+<p>To illustrate the problem, I wrote simple <code>gRPC</code> apps in Go (a client and a server)
+based on this <code>.proto</code>:</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-proto data-lang=proto><span class=line><span class=cl><span class=n>syntax</span> <span class=o>=</span> <span class=s>"proto3"</span><span class=p>;</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>option</span> <span class=n>go_package</span> <span class=o>=</span> <span class=s>"internal/"</span><span class=p>;</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=kd>service</span> <span class=n>Service</span> <span class=p>{</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span>  <span class=k>rpc</span> <span class=n>Get</span><span class=p>(</span><span class=n>Req</span><span class=p>)</span> <span class=k>returns</span> <span class=p>(</span><span class=n>Res</span><span class=p>)</span> <span class=p>{}</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=p>}</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=kd>message</span> <span class=nc>Req</span> <span class=p>{}</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=kd>message</span> <span class=nc>Res</span> <span class=p>{</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span>  <span class=kt>string</span> <span class=n>id</span> <span class=o>=</span> <span class=mi>1</span><span class=p>;</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=p>}</span><span class=err>
+</span></span></span></code></pre></div><p>The client sends 3000 messages via the <code>Get</code> method, and the server responds
+with a pre-generated <code>UUID</code> to reflect its unique identity. The returned value is then
+printed to <code>stdout</code> by the client. Here’s the client’s code:</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kn>package</span> <span class=nx>main</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kn>import</span> <span class=p>(</span>
+</span></span><span class=line><span class=cl>	<span class=s>"context"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"example/grpc_lb/internal"</span>
+</span></span><span class=line><span class=cl>    <span class=s>"os"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"fmt"</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=s>"google.golang.org/grpc"</span>
+</span></span><span class=line><span class=cl>	<span class=s>"google.golang.org/grpc/credentials/insecure"</span>
+</span></span><span class=line><span class=cl><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>const</span> <span class=nx>n</span> <span class=p>=</span> <span class=mi>3000</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nx>target</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Getenv</span><span class=p>(</span><span class=s>"TARGET"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>target</span> <span class=o>==</span> <span class=s>""</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nb>panic</span><span class=p>(</span><span class=s>"no target"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=nx>conn</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>grpc</span><span class=p>.</span><span class=nf>NewClient</span><span class=p>(</span>
+</span></span><span class=line><span class=cl>		<span class=nx>target</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>        <span class=nx>grpc</span><span class=p>.</span><span class=nf>WithTransportCredentials</span><span class=p>(</span><span class=nx>insecure</span><span class=p>.</span><span class=nf>NewCredentials</span><span class=p>()),</span>
+</span></span><span class=line><span class=cl>    <span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nb>panic</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=k>defer</span> <span class=nx>conn</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>c</span> <span class=o>:=</span> <span class=nx>internal</span><span class=p>.</span><span class=nf>NewServiceClient</span><span class=p>(</span><span class=nx>conn</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>i</span> <span class=o>:=</span> <span class=mi>0</span><span class=p>;</span> <span class=nx>i</span> <span class=p>&lt;</span> <span class=nx>n</span><span class=p>;</span> <span class=nx>i</span><span class=o>++</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>res</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>Get</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=o>&amp;</span><span class=nx>internal</span><span class=p>.</span><span class=nx>Req</span><span class=p>{})</span>
+</span></span><span class=line><span class=cl>		<span class=nx>fmt</span><span class=p>.</span><span class=nf>Println</span><span class=p>(</span><span class=nx>res</span><span class=p>.</span><span class=nf>GetId</span><span class=p>())</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p>Using <a href=https://minikube.sigs.k8s.io/docs/ target=_blank rel=noopener>minikube</a>
+ as my local Kubernetes cluster.
+I’ve deployed three servers, pointed from a service called <code>server,</code> and ran one client
+as a job:</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>kubectl get pods
+</span></span><span><span>NAME                      READY   STATUS      RESTARTS   AGE
+</span></span><span><span>client-xm42p              0/1     Completed   <span>0</span>          7m51s
+</span></span><span><span>server-6565dd7765-7g67b   1/1     Running     <span>0</span>          7m44s
+</span></span><span><span>server-6565dd7765-hl7ww   1/1     Running     <span>0</span>          7m44s
+</span></span><span><span>server-6565dd7765-l7hrp   1/1     Running     <span>0</span>          7m44s
+</span></span><span><span>
+</span></span><span><span>kubectl get svc
+</span></span><span><span>NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT<span>(</span>S<span>)</span>    AGE
+</span></span><span><span>server       ClusterIP   10.104.44.221   &lt;none&gt;        9090/TCP   7m40s
+</span></span></code></pre></div><p>Let’s look at the logs:</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>kubectl logs job/client | uniq -c
+</span></span><span><span> <span>3000</span> 7b4fcf65-2c93-4c5c-8433-5950c91553a9
+</span></span></code></pre></div><p>As you can see, although we have three servers, the client sent all of its requests only to one of
+these servers. Maybe because our single client is making synchronous
+requests to the service. Let’s try to communicate concurrently:</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nx>target</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Getenv</span><span class=p>(</span><span class=s>"TARGET"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>target</span> <span class=o>==</span> <span class=s>""</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nb>panic</span><span class=p>(</span><span class=s>"no target"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=nx>conn</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>grpc</span><span class=p>.</span><span class=nf>NewClient</span><span class=p>(</span>
+</span></span><span class=line><span class=cl>		<span class=nx>target</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>		<span class=nx>grpc</span><span class=p>.</span><span class=nf>WithTransportCredentials</span><span class=p>(</span><span class=nx>insecure</span><span class=p>.</span><span class=nf>NewCredentials</span><span class=p>()),</span>
+</span></span><span class=line><span class=cl>	<span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nb>panic</span><span class=p>(</span><span class=nx>err</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=k>defer</span> <span class=nx>conn</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>c</span> <span class=o>:=</span> <span class=nx>internal</span><span class=p>.</span><span class=nf>NewServiceClient</span><span class=p>(</span><span class=nx>conn</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class="line hl"><span class=cl>	<span class=nx>ch</span> <span class=o>:=</span> <span class=nb>make</span><span class=p>(</span><span class=kd>chan</span> <span class=kt>string</span><span class=p>)</span>
+</span></span><span class="line hl"><span class=cl>	<span class=k>for</span> <span class=nx>i</span> <span class=o>:=</span> <span class=mi>0</span><span class=p>;</span> <span class=nx>i</span> <span class=p>&lt;</span> <span class=nx>n</span><span class=p>;</span> <span class=nx>i</span><span class=o>++</span> <span class=p>{</span>
+</span></span><span class="line hl"><span class=cl>		<span class=k>go</span> <span class=kd>func</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class="line hl"><span class=cl>			<span class=nx>res</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>Get</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=o>&amp;</span><span class=nx>internal</span><span class=p>.</span><span class=nx>Req</span><span class=p>{})</span>
+</span></span><span class="line hl"><span class=cl>			<span class=nx>ch</span> <span class=o>&lt;-</span> <span class=nx>res</span><span class=p>.</span><span class=nf>GetId</span><span class=p>()</span>
+</span></span><span class="line hl"><span class=cl>		<span class=p>}()</span>
+</span></span><span class="line hl"><span class=cl>	<span class=p>}</span>
+</span></span><span class="line hl"><span class=cl>
+</span></span><span class="line hl"><span class=cl>	<span class=k>for</span> <span class=nx>i</span> <span class=o>:=</span> <span class=mi>0</span><span class=p>;</span> <span class=nx>i</span> <span class=p>&lt;</span> <span class=nx>n</span><span class=p>;</span> <span class=nx>i</span><span class=o>++</span> <span class=p>{</span>
+</span></span><span class="line hl"><span class=cl>		<span class=nx>fmt</span><span class=p>.</span><span class=nf>Println</span><span class=p>(</span><span class=o>&lt;-</span><span class=nx>ch</span><span class=p>)</span>
+</span></span><span class="line hl"><span class=cl>	<span class=p>}</span>
+</span></span><span class="line hl"><span class=cl>	<span class=nb>close</span><span class=p>(</span><span class=nx>ch</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>kubectl logs job/client | uniq -c
+</span></span><span><span> <span>3000</span> 7b4fcf65-2c93-4c5c-8433-5950c91553a9
+</span></span></code></pre></div><p>The same results. You’ll still face the same results even if you try to create the connection on every iteration.
+As mentioned above, the load-balancer is symmetrically spreading connections across pods,
+so a single client will always be connected to the same server.</p>
+<h2 id=the-solution>The Solution</h2>
+<p>In this experiment, we’re trying to make our single client spread its messages (preferably evenly)
+across the different replicas of the server.</p>
+<pre class=mermaid data-processed=true></pre>
+<p><small><i>Figure 3: One client is sending requests to all server’s replicas.</i></small></p>
+<h3 id=headless-service>Headless service</h3>
+<p>The trick is to <strong>not use</strong> Kubernetes’ built-in load balancer. Kubernetes supports <em>headless</em> services.
+Those services don’t have static IPs and, therefore, don’t have a single endpoint where they perform
+load-balancing. The purpose of <em>headless</em> services is to expose pod IPs deployed under
+the service via <code>DNS</code>, allowing other load-balancing/service-discovery implementations to replace
+the built-in one.</p>
+<p>To turn a Kubernetes service into a <em>headless</em> service, we should simply add to our service definition:</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Service</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>server</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>default</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>app.kubernetes.io/name</span><span class=p>:</span><span class=w> </span><span class=l>server</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span></span></span><span class="line hl"><span class=cl><span class=w>  </span><span class=nt>clusterIP</span><span class=p>:</span><span class=w> </span><span class=l>None</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>grpc</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=m>9090</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>targetPort</span><span class=p>:</span><span class=w> </span><span class=m>9090</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>app.kubernetes.io/name</span><span class=p>:</span><span class=w> </span><span class=l>server</span><span class=w>
+</span></span></span></code></pre></div><h3 id=client-side-load-balancing>Client side load-balancing</h3>
+<p>Now that our service is <em>headless</em>, we can set the client’s load-balancing policy
+to make request in a <em>round-robin</em> fashion:</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>target</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Getenv</span><span class=p>(</span><span class=s>"TARGET"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>target</span> <span class=o>==</span> <span class=s>""</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nb>panic</span><span class=p>(</span><span class=s>"no target"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=nx>conn</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>grpc</span><span class=p>.</span><span class=nf>NewClient</span><span class=p>(</span>
+</span></span><span class=line><span class=cl>		<span class=nx>target</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>		<span class=nx>grpc</span><span class=p>.</span><span class=nf>WithTransportCredentials</span><span class=p>(</span><span class=nx>insecure</span><span class=p>.</span><span class=nf>NewCredentials</span><span class=p>()),</span>
+</span></span><span class="line hl"><span class=cl>		<span class=nx>grpc</span><span class=p>.</span><span class=nf>WithDefaultServiceConfig</span><span class=p>(</span><span class=s>`{"loadBalancingPolicy":"round_robin"}`</span><span class=p>),</span>
+</span></span><span class=line><span class=cl>	<span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=c1>//... rest of the code
+</span></span></span></code></pre></div><p>If we run this version of the client against a <em>headless</em> service:</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>kubectl logs job/client | sort | uniq -c
+</span></span><span><span> <span>871</span> 7b4fcf65-2c93-4c5c-8433-5950c91553a9
+</span></span><span><span><span>1258</span> afaeeea0-87c3-4473-b8ad-1c5b61407b57
+</span></span><span><span> <span>871</span> ca66dd65-c6df-44c4-bb3e-60c00f8776b5
+</span></span></code></pre></div><p>Great! All 3000 messages were sent across all pods. The spread is not quite
+even. One pod received about 42% of messages, and the others about 29%. The reason is that our client
+sent all of its messages concurrently. If we send the messages synchronously:</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>k logs job/client | sort | uniq -c
+</span></span><span><span> <span>999</span> 7b4fcf65-2c93-4c5c-8433-5950c91553a9
+</span></span><span><span><span>1000</span> afaeeea0-87c3-4473-b8ad-1c5b61407b57
+</span></span><span><span><span>1001</span> ca66dd65-c6df-44c4-bb3e-60c00f8776b5
+</span></span></code></pre></div><p>The client has almost successfully cycled around all three servers with a nearly 100% even spread.</p>
+<h3 id=discovery>Discovery</h3>
+<p>We’re not done yet. Our client doesn’t have a mechanism for knowing about new pods
+during its runtime. When calling <code>NewClient</code> with the load-balancing settings,
+our client retrieves the list of available IPs and will never try to fetch it again by default.</p>
+<p>To illustrate this point, I throttled the client by adding 50 milliseconds to each iteration,
+giving me 2.5 minutes to play with the number of replicas during the client’s runtime.</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl>	<span class=nx>ch</span> <span class=o>:=</span> <span class=nb>make</span><span class=p>(</span><span class=kd>chan</span> <span class=kt>string</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>i</span> <span class=o>:=</span> <span class=mi>0</span><span class=p>;</span> <span class=nx>i</span> <span class=p>&lt;</span> <span class=nx>n</span><span class=p>;</span> <span class=nx>i</span><span class=o>++</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=k>go</span> <span class=kd>func</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>			<span class=nx>res</span><span class=p>,</span> <span class=nx>_</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>Get</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=o>&amp;</span><span class=nx>internal</span><span class=p>.</span><span class=nx>Req</span><span class=p>{})</span>
+</span></span><span class=line><span class=cl>			<span class=nx>ch</span> <span class=o>&lt;-</span> <span class=nx>res</span><span class=p>.</span><span class=nf>GetId</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>		<span class=p>}()</span>
+</span></span><span class="line hl"><span class=cl>		<span class=nx>time</span><span class=p>.</span><span class=nf>Sleep</span><span class=p>(</span><span class=nx>time</span><span class=p>.</span><span class=nx>Millisecond</span> <span class=o>*</span> <span class=mi>50</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// ... rest of the code
+</span></span></span></code></pre></div><p>I removed one replica during runtime and gradually added up to 5 replicas.
+Let’s see the results:</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>k logs job/client | sort | uniq -c
+</span></span><span><span><span>1</span>
+</span></span><span><span><span>1112</span> afaeeea0-87c3-4473-b8ad-1c5b61407b57
+</span></span><span><span><span>1887</span> b48de8b8-6a88-472f-8043-f2e72d22175f
+</span></span></code></pre></div><p>Interestingly, we’ve lost one pod forever after the first change (removing one replica).
+In fact, it (coincidentally) failed to make its first request, and our client’s load balancer discarded it for good.
+Notice that our client wasn’t aware that I’d added more replicas (up to 5) during its runtime.</p>
+<p>To solve this, we need a <code>DNS</code> resolver that allows the client to periodically fetch new IPs.
+The <code>google.golang.org/grpc</code> module conveniently has a built-in <code>DNS</code> resolver.
+By using its <code>resolver</code> package, we can globally register a <code>DNS</code> resolver as follows:</p>
+<div class=highlight><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class="line hl"><span class=cl><span class=kd>func</span> <span class=nf>init</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class="line hl"><span class=cl>	<span class=nx>resolver</span><span class=p>.</span><span class=nf>Register</span><span class=p>(</span><span class=nx>resolver</span><span class=p>.</span><span class=nf>Get</span><span class=p>(</span><span class=s>"dns"</span><span class=p>))</span>
+</span></span><span class="line hl"><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>target</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Getenv</span><span class=p>(</span><span class=s>"TARGET"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>target</span> <span class=o>==</span> <span class=s>""</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nb>panic</span><span class=p>(</span><span class=s>"no target"</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=nx>conn</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>grpc</span><span class=p>.</span><span class=nf>NewClient</span><span class=p>(</span>
+</span></span><span class="line hl"><span class=cl>		<span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>"dns:///%s"</span><span class=p>,</span> <span class=nx>target</span><span class=p>),</span>
+</span></span><span class=line><span class=cl>		<span class=nx>grpc</span><span class=p>.</span><span class=nf>WithTransportCredentials</span><span class=p>(</span><span class=nx>insecure</span><span class=p>.</span><span class=nf>NewCredentials</span><span class=p>()),</span>
+</span></span><span class=line><span class=cl>		<span class=nx>grpc</span><span class=p>.</span><span class=nf>WithDefaultServiceConfig</span><span class=p>(</span><span class=s>`{"loadBalancingPolicy":"round_robin"}`</span><span class=p>),</span>
+</span></span><span class=line><span class=cl>	<span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// ... rest of the code
+</span></span></span></code></pre></div><p>On this attempt, I started with three replicas, then dropped one, added one, and finally dropped one.
+Let’s look at the results:</p>
+<div class=highlight><pre tabindex=0><code class=language-bash data-lang=bash><span><span>k logs job/client | sort | uniq -c
+</span></span><span><span> <span>512</span> 74025783-3545-4d2c-b1c9-1b20b5042b31
+</span></span><span><span><span>1169</span> b48de8b8-6a88-472f-8043-f2e72d22175f
+</span></span><span><span><span>1169</span> ca66dd65-c6df-44c4-bb3e-60c00f8776b5
+</span></span><span><span> <span>150</span> f17c9530-1970-4b53-a86b-5b66ce0e575e
+</span></span></code></pre></div><p>Not a single miss. The last one, with the 150 messages, is probably the first pod dropped
+since I dropped it closer to the start of the client’s job. Then, I’ve added one, perhaps the
+pod with the 512 messages. After I removed one replica again, I was left with two pods, running until
+the job was finished, explaining the two pods with identical 1169 messages.</p>
+<p>By understanding the benefits of <em>headless</em> services in Kubernetes and combining client-side load-balancing
+with a <code>DNS</code> resolver, we’ve managed to make a <code>gRPC</code> client in Go that knows how to spread its messages
+in a <em>round-robin</em> manner while being aware of new available servers during runtime.</p>
+ 
+ </div>
+ <div class=sidebar></div>
+ </div>
+ <div class=spacer></div>
+ <div class=footer><br>
+<a href="https://www.paypal.com/donate/?business=ANXMHC6PED4DG&amp;no_recurring=1&amp;currency_code=USD">Support this blog</a>
+<br>
+<img src=data:, alt data-sf-original-src=https://nyadgar.com/QR%20Code.png>
+<p>Copyright 2025. All rights reserved.</p>
+</div>
+ </div>
+ <div id=cookie-notice>
+ <span>We would like to use third party cookies and scripts to improve the
+ functionality of this website.</span>
+ <a id=cookie-notice-accept class="btn btn-primary btn-sm">Approve</a>
+ <a id=cookie-notice-deny class="btn btn-primary btn-sm">Deny</a>
+ <a href=https://nyadgar.com/privacy class="btn btn-primary btn-sm">More info</a>
+</div>
+ 
+<deepl-input-controller><template shadowrootmode=open><div dir=ltr><div class="dl-input-translation-container svelte-95aucy"><div></div></div></div></template></deepl-input-controller><div class=mermaidTooltip></div><script data-template-shadow-root>(()=>{document.currentScript.remove();processNode(document);function processNode(node){node.querySelectorAll("template[shadowrootmode]").forEach(element=>{let shadowRoot = element.parentElement.shadowRoot;if (!shadowRoot) {try {shadowRoot=element.parentElement.attachShadow({mode:element.getAttribute("shadowrootmode"),delegatesFocus:element.getAttribute("shadowrootdelegatesfocus")!=null,clonable:element.getAttribute("shadowrootclonable")!=null,serializable:element.getAttribute("shadowrootserializable")!=null});shadowRoot.innerHTML=element.innerHTML;element.remove()} catch (error) {} if (shadowRoot) {processNode(shadowRoot)}}})}})()</script>
