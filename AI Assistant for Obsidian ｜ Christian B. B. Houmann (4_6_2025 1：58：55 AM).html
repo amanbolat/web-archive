@@ -1,0 +1,440 @@
+<!DOCTYPE html> <html lang=en data-lt-installed=true><!--
+ Page saved with SingleFile 
+ url: https://bagerbach.com/blog/obsidian-ai#my-ai-powered-workflows 
+ saved date: Sun Apr 06 2025 01:58:55 GMT+0200 (Central European Summer Time)
+--><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=icon href=data:, type=image/png data-sf-original-href=https://bagerbach.com/icon.png><link rel=apple-touch-icon href=data:, data-sf-original-href=https://bagerbach.com/icon.png><meta name=generator content="Astro v5.4.1"><meta name=theme-color content=#111><meta name=apple-mobile-web-app-capable content=yes><meta name=apple-mobile-web-app-status-bar-style content=black><link rel=canonical href=https://bagerbach.com/blog/obsidian-ai/><title>AI Assistant for Obsidian | Christian B. B. Houmann</title><meta name=title content="AI Assistant for Obsidian | Christian B. B. Houmann"><meta name=description content="A guide to using AI to augment your thinking and automate the trivial in Obsidian. This tool integrates with OpenAI's GPT-3 and GPT-4 models to provide a powerful AI assistant inside your thinking environment. Features prompt templates, chain prompting, and other powerful features."><meta property=og:type content=website><meta property=og:url content=https://bagerbach.com/blog/obsidian-ai/><meta property=og:site_name content="Christian B. B. Houmann"><meta property=og:title content="AI Assistant for Obsidian | Christian B. B. Houmann"><meta property=og:description content="A guide to using AI to augment your thinking and automate the trivial in Obsidian. This tool integrates with OpenAI's GPT-3 and GPT-4 models to provide a powerful AI assistant inside your thinking environment. Features prompt templates, chain prompting, and other powerful features."><meta property=og:image content=https://bagerbach.com/api/og/obsidian-ai.png><meta property=twitter:card content=summary_large_image><meta property=twitter:creator content=chrisbbh><meta property=twitter:url content=https://bagerbach.com/blog/obsidian-ai/><meta property=twitter:title content="AI Assistant for Obsidian | Christian B. B. Houmann"><meta property=twitter:description content="A guide to using AI to augment your thinking and automate the trivial in Obsidian. This tool integrates with OpenAI's GPT-3 and GPT-4 models to provide a powerful AI assistant inside your thinking environment. Features prompt templates, chain prompting, and other powerful features."><meta property=twitter:image content=https://bagerbach.com/api/og/obsidian-ai.png><meta name=referrer content=no-referrer><link rel="shortcut icon" href=data:, type=image/png data-sf-original-href=https://bagerbach.com/icon.png><meta http-equiv=content-security-policy content="default-src 'none'; font-src 'self' data:; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self' data:; script-src 'unsafe-inline' data:; object-src 'self' data:; frame-src 'self' data:;"><style>img[src="data:,"],source[src="data:,"]{display:none!important}</style></head> <body> <div class="flex flex-col justify-center px-8"> <header data-astro-cid-3ef6ksr2> <nav class="relative mx-auto flex w-full max-w-2xl items-center justify-between bg-opacity-60 pt-8 pb-8 border-gray-700 text-gray-100 sm:pb-16" data-astro-cid-3ef6ksr2> <div class="flex flex-row gap-2 sm:gap-0" data-astro-cid-3ef6ksr2> <a href=https://bagerbach.com/ class="rounded-lg p-1 text-xl hover:bg-[#222] sm:px-3 sm:py-2 sm:text-base font-normal text-gray-400" data-astro-cid-3ef6ksr2=true> <span>Home</span> </a> <a href=https://bagerbach.com/blog class="rounded-lg p-1 text-xl hover:bg-[#222] sm:px-3 sm:py-2 sm:text-base font-normal text-gray-400" data-astro-cid-3ef6ksr2=true> <span>Blog</span> </a> <a href=https://bagerbach.com/books class="rounded-lg p-1 text-xl hover:bg-[#222] sm:px-3 sm:py-2 sm:text-base font-normal text-gray-400" data-astro-cid-3ef6ksr2=true> <span>Books</span> </a> </div> </nav> </header> <main class="flex flex-col justify-center"> <article class="flex flex-col items-start justify-center w-full max-w-2xl mx-auto mb-16"> <div class=hero-image> </div> <h1 class="mb-4 mx-auto text-center text-3xl font-bold tracking-tight md:text-5xl text-white"> AI Assistant for Obsidian </h1> <div class="flex flex-col items-start justify-between w-full mt-2 md:flex-row md:items-center"> <div class="flex items-center w-full justify-center"> <p class="ml-2 text-sm text-gray-300"> <time datetime=2023-04-22T00:00:00.000Z> Apr 22, 2023 </time> | 15 min read </p> </div> </div> <hr class="w-full my-6 mx-auto justify-center"> <div class="flex flex-col justify-center container mx-auto w-full"> <div class="prose prose-invert prose-green max-w-none w-full"> <p>What if you could take all of your existing workflows in Obsidian, and in just a few steps, add the power of AI?</p>
+<p>Imagine…</p>
+<ul>
+<li>Creating a new note and having AI curate writing prompts, based on links you’ve already made, so you never start from a blank page</li>
+<li>Using AI as an intellectual sparring partner as you write your notes</li>
+<li>Effortlessly transforming the structure of your writing by giving instructions in plain English</li>
+</ul>
+<p>All this, and so much more, is now possible from within Obsidian.</p>
+<p>The new AI Assistant for QuickAdd is a powerful tool that integrates with OpenAI’s GPT-3 and GPT-4 models to provide a powerful AI assistant inside your thinking environment.<br>
+It allows you to automate the trivial, freeing up time for the important, and augment your thinking by acting as an intellectual sparring partner.</p>
+<p>All you need is the QuickAdd plugin and an <a class="hover:underline font-bold text-green-400" href=https://platform.openai.com/ rel="noopener noreferrer" target=_blank>OpenAI API key</a>. Here’s <a class="hover:underline font-bold text-green-400" href=https://tfthacker.medium.com/how-to-get-your-own-api-key-for-using-openai-chatgpt-in-obsidian-41b7dd71f8d3 rel="noopener noreferrer" target=_blank>TfTHacker’s wonderful guide to acquiring such an API key</a>.</p>
+<p>Here’s a <a class="hover:underline font-bold text-green-400" href=https://twitter.com/chrisbbh/status/1647670976035815424 rel="noopener noreferrer" target=_blank>Twitter thread with some examples of what you can do with the AI Assistant</a>. I’ll showcase all of these examples in this guide.</p>
+<h2 id=from-0-to-ai-powered>From 0 to AI-Powered</h2>
+<ol>
+<li>Inside Obsidian, create a folder for AI prompt templates. Remember the path to this folder, you’ll need it later. E.g. <code>bins/ai_prompts</code>.</li>
+<li>Open QuickAdd settings. Open the “AI Assistant” settings, and set the path to your AI prompt templates folder.</li>
+<li>In the same settings tab, paste your OpenAI API key into the “OpenAI API Key” field.</li>
+</ol>
+<video class="rounded-xl my-4 mx-auto w-full" controls poster=data:, data-sf-original-src=/uploads/AI_Assistant_Setup.mp4></video><a href=https://bagerbach.com/uploads/AI_Assistant_Setup.mp4 target=_blank><img src=data:,></a>
+<p>That’s really it. You’re now ready to use the AI Assistant.</p>
+<p>The basic idea is that you set up a QuickAdd Macro, which will trigger the AI Assistant.<br>
+The AI Assistant will then use the prompt template you specify to generate a prompt, which it will then send to OpenAI.<br>
+OpenAI will then return a response, which the AI Assistant passes on to the QuickAdd Macro.<br>
+You can then use the response in subsequent steps in the macro, e.g. to capture to a note, or create a new note.</p>
+<p><strong>Creating prompt templates is simple: just create a note in your prompt templates folder.</strong></p>
+<p>You can use any of <a class="hover:underline font-bold text-green-400" href=https://quickadd.obsidian.guide/docs/FormatSyntax rel="noopener noreferrer" target=_blank>QuickAdds Format Syntax</a> or <a class="hover:underline font-bold text-green-400" href=https://quickadd.obsidian.guide/docs/InlineScripts rel="noopener noreferrer" target=_blank>QuickAdd Inline Scripts</a>. You’ll see some powerful examples of this in the <a href=#my-ai-powered-workflows class="font-bold text-green-400 hover:underline">My Workflows section</a>.</p>
+<p>Here’s a very simple setup example, going from 0 to AI-powered in just a few steps.</p>
+<video class="rounded-xl my-4 mx-auto w-full" controls poster=data:, data-sf-original-src=/uploads/AI_Assistant_Macro.mp4></video><a href=https://bagerbach.com/uploads/AI_Assistant_Macro.mp4 target=_blank><img src=data:,></a>
+<p>I have a folder for AI prompt templates, as recommended.<br>
+My basic AI Assistant macro setup uses just the AI Assistant followed by a Capture, as shown in the GIF above.</p>
+<p>The only difference is that my Capture uses the following Capture format:</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=plaintext><code><span class=line><span>{{selected}}</span></span>
+<span class=line><span></span></span>
+<span class=line><span>{{value:output}}</span></span></code></pre>
+<p><code>{{selected}}</code> is either empty or whatever text you’ve selected, making it ideal for using AI in the active file.<br>
+<code>{{value:output}}</code> is the assistant’s output.</p>
+<p>But the AI Assistant can be used as a building block in more elaborate macros, as we shall see.</p>
+<h2 id=the-ai-assistant-settings>The AI Assistant Settings</h2>
+<p>In the main settings for the AI Assistant, accessed through the QuickAdd settings, you can set the following options:</p>
+<ul>
+<li>API Key for OpenAI</li>
+<li>Prompt Templates Folder, which contains all of your prompt templates</li>
+<li>Default model, which determines which model OpenAI will use</li>
+<li>Whether to show the assistant, which toggles status messages</li>
+<li>Default system prompt template, which will determine the models behavior</li>
+</ul>
+<p><figure class=image-wrapper> <img src=data:, alt="AI Assistant Settings" loading=lazy decoding=async data-fullscreen=true inputtedwidth=800 width=800 height=600 class=custom-image data-sf-original-src="https://bagerbach.com/_vercel/image?url=%2Fuploads%2FAI_Assistant_Settings.png&amp;w=828&amp;q=100"> </figure> <p></p>
+<p>And then, for each individual AI Assistant command in your macros, you can set the following options:</p>
+<ul>
+<li>Prompt template, which determines which prompt template to use. If you do not specify one, the AI Assistant will ask you to select one from your prompt templates folder.</li>
+<li>Model, which determines which model OpenAI will use. This will override the default model set in the main settings.</li>
+<li>Output name variable, which determines the name of the variable that will contain the AI Assistant’s output. This is useful if you want to use the output in subsequent steps in your macro. This is <code>output</code>, i.e. <code>{{value:output}}</code>, by default. There will also be a <code>{{value:output-quoted}}</code> variable, which will contain the output, but with in markdown blockquote format. This is useful if you want to use the output in a callout, for example.</li>
+<li>System prompt template, which determines the models behavior. This will override the default system prompt template set in the main settings.</li>
+</ul>
+<p><figure class=image-wrapper> <img src=data:, alt="AI Assistant Command Settings" loading=lazy decoding=async data-fullscreen=true inputtedwidth=800 width=800 height=600 class=custom-image data-sf-original-src="https://bagerbach.com/_vercel/image?url=%2Fuploads%2FAI_Assistant_Command_Settings.png&amp;w=828&amp;q=100"> </figure> <p></p>
+<h2 id=my-ai-powered-workflows>My AI-Powered Workflows</h2>
+<p>What follows are select workflows I’ve found to be useful in my work.</p>
+<p>I’m including the prompt template as a whole, so you can copy and paste it into your own AI prompt templates folder.<br>
+There is some scripting involved in some of these, but I’ve tried to annotate the code so it’s easy to understand what you are running.</p>
+<h3 id=generating-writing-prompts>Generating writing prompts</h3>
+<p>Enter a link and AI generates 10 writing prompts based on your notes connecting to that note.</p>
+<p>This prompt template uses Dataview (required plugin) to get all notes related to the one you enter.</p>
+<video class="rounded-xl my-4 mx-auto w-full" controls poster=data:, data-sf-original-src=/uploads/AI_Assistant_Writing_Prompt_Generator.mp4></video><a href=https://bagerbach.com/uploads/AI_Assistant_Writing_Prompt_Generator.mp4 target=_blank><img src=data:,></a>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>Here is a list of Obsidian (Markdown) links to pages related to {{value:Link}}.</span></span>
+<span class=line><span>Please use these to give me 10 writing prompts in bullet form concerning {{value:Link}}.</span></span>
+<span class=line></span>
+<span class=line><span>Use the links in paragraps as part of the sentences.</span></span>
+<span class=line></span>
+<span class=line><span>```js quickadd</span></span>
+<span class=line><span>// Use a shorthand for the DataView API</span></span>
+<span class=line><span>const dv = DataviewAPI;</span></span>
+<span class=line><span>// Prompt user for link to MOC note</span></span>
+<span class=line><span>const targetLink = await this.quickAddApi.inputPrompt(</span></span>
+<span class=line><span>    'MoC Link',</span></span>
+<span class=line><span>    "Enter a link we'll use to get all notes linked to it."</span></span>
+<span class=line><span>);</span></span>
+<span class=line><span>this.variables['Link'] = targetLink;</span></span>
+<span class=line></span>
+<span class=line><span>// Get a list of all notes linked to the target link</span></span>
+<span class=line><span>const healthPages = dv.pages(targetLink).values;</span></span>
+<span class=line><span>// Format the notes as [[links]]</span></span>
+<span class=line><span>const links = healthPages.map((f) =&gt; {</span></span>
+<span class=line><span>    const tf = app.vault.getAbstractFileByPath(f.file.path);</span></span>
+<span class=line><span>    return app.fileManager.generateMarkdownLink(tf, '/');</span></span>
+<span class=line><span>});</span></span>
+<span class=line></span>
+<span class=line><span>// Join the list such that it is in text format, and there is one link per line</span></span>
+<span class=line><span>return links.join('\n');</span></span>
+<span class=line><span>```</span></span></code></pre>
+<h3 id=moc-creator>MOC Creator</h3>
+<p>Here’s the MOC outline creator I showcased in the <a class="hover:underline font-bold text-green-400" href=https://twitter.com/chrisbbh/status/1647670981417156609 rel="noopener noreferrer" target=_blank>Twitter thread</a>.</p>
+<p>This is an improved version which, like the above prompt, asks you for a link, and then it generated a MOC for that note.</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>Here is a list of Obsidian (Markdown) links to pages related to {{value:Link}}.</span></span>
+<span class=line><span>Please use these to write the outline for a note concerning {{value:Link}}. It should be at most 200 words.</span></span>
+<span class=line></span>
+<span class=line><span>Use the markdown links in paragraps as part of the sentences.</span></span>
+<span class=line></span>
+<span class=line><span>```js quickadd</span></span>
+<span class=line><span>// Use a shorthand for the DataView API</span></span>
+<span class=line><span>const dv = DataviewAPI;</span></span>
+<span class=line><span>// Prompt user for link to MOC note</span></span>
+<span class=line><span>const targetLink = await this.quickAddApi.inputPrompt(</span></span>
+<span class=line><span>    'MoC Link',</span></span>
+<span class=line><span>    "Enter a link we'll use to get all notes linked to it."</span></span>
+<span class=line><span>);</span></span>
+<span class=line><span>this.variables['Link'] = targetLink;</span></span>
+<span class=line></span>
+<span class=line><span>// Get a list of all notes linked to the target link</span></span>
+<span class=line><span>const healthPages = dv.pages(targetLink).values;</span></span>
+<span class=line><span>// Format the notes as [[links]]</span></span>
+<span class=line><span>const links = healthPages.map((f) =&gt; {</span></span>
+<span class=line><span>    const tf = app.vault.getAbstractFileByPath(f.file.path);</span></span>
+<span class=line><span>    return app.fileManager.generateMarkdownLink(tf, '/');</span></span>
+<span class=line><span>});</span></span>
+<span class=line></span>
+<span class=line><span>// Join the list such that it is in text format, and there is one link per line</span></span>
+<span class=line><span>return links.join('\n');</span></span>
+<span class=line><span>```</span></span></code></pre>
+<h4 id=moc-creator-with-content>MOC Creator with content</h4>
+<p>This is a variation of the MOC creator, which also includes the content of the note you are creating a MOC for.</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>Here is a list of Obsidian (Markdown) links to pages related to {{value:Link}} along with their contents.</span></span>
+<span class=line><span>Please use these to write the outline for a note concerning {{value:Link}}. It should be at most 200 words.</span></span>
+<span class=line></span>
+<span class=line><span>Use the markdown links in paragraps as part of the sentences. </span></span>
+<span class=line></span>
+<span class=line><span>```js quickadd</span></span>
+<span class=line><span>// Use a shorthand for the DataView API</span></span>
+<span class=line><span>const dv = DataviewAPI;</span></span>
+<span class=line><span>// Prompt user for link to MOC note</span></span>
+<span class=line><span>const targetLink = await this.quickAddApi.inputPrompt("MoC Link", "Enter a link we'll use to get all notes linked to it.");</span></span>
+<span class=line><span>this.variables["Link"] = targetLink;</span></span>
+<span class=line></span>
+<span class=line><span>// Get a list of all notes linked to the target link</span></span>
+<span class=line><span>const healthPages = dv.pages(targetLink).values;</span></span>
+<span class=line><span>// Format the notes as [[links]]</span></span>
+<span class=line><span>const links = await Promise.all(healthPages.map(async f =&gt; {</span></span>
+<span class=line><span>	const tf = app.vault.getAbstractFileByPath(f.file.path);</span></span>
+<span class=line><span>	const fileContent = await app.vault.cachedRead(tf);</span></span>
+<span class=line><span>	const link = app.fileManager.generateMarkdownLink(tf, '/');</span></span>
+<span class=line></span>
+<span class=line><span>	return `## ${link}\n${fileContent}`</span></span>
+<span class=line><span>}));</span></span>
+<span class=line></span>
+<span class=line><span>// Join the list such that it is in text format, and there is one link per line</span></span>
+<span class=line><span>return links.join("\n");</span></span>
+<span class=line><span>```</span></span></code></pre>
+<h3 id=summarizer>Summarizer</h3>
+<p>Here’s a simple prompt where you select some text, and then use the assistant with that prompt.<br>
+Then it’ll spit out an AI-generated summary:</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>Please summarize the following text. Use only the text itself as material for summarization, and do not add anything new. Rewrite this for brevity, in outline form:</span></span>
+<span class=line><span>{{value}}</span></span></code></pre>
+<h3 id=transform-selected>Transform selected</h3>
+<p>This prompt template will ask you for instructions, which it’ll use to transform the text you’ve selected.</p>
+<p>It can do basically anything - not just transform. You could ask it to summarize text by giving instructions similar to those in the summarizer prompt, explain the text you’ve selected, rewrite something in outline form, or anything you’d like.</p>
+<p>I asked it to explain a LaTeX equation I had selected by using the symbols as reference, and it did so perfectly, explaining each symbol, and then the whole formula.</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>Instructions:</span></span>
+<span class=line><span>{{VALUE:Instructions}}</span></span>
+<span class=line></span>
+<span class=line><span>Please follow the instructions above to transform the text:</span></span>
+<span class=line><span>{{selected}}</span></span></code></pre>
+<h3 id=flashcard-creator>Flashcard creator</h3>
+<p>This prompt template generates flashcards based on selected text.</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>Please create flashcards in the form</span></span>
+<span class=line><span>Q: Question here</span></span>
+<span class=line><span>A: Answer here</span></span>
+<span class=line></span>
+<span class=line><span>The question should be brief, to the point, simple, and should not be double-barreled. Avoid general questions and double negative questions.</span></span>
+<span class=line><span>The answer should also be brief and simple.</span></span>
+<span class=line></span>
+<span class=line><span>If you cannot contain the material in a single question, please create multiple flashcards.</span></span>
+<span class=line></span>
+<span class=line><span>---</span></span>
+<span class=line></span>
+<span class=line><span>{{value}}</span></span></code></pre>
+<video class="rounded-xl my-4 mx-auto w-full" controls poster=data:, data-sf-original-src=/uploads/AI_Assistant_Flashcard_Creator.mp4></video><a href=https://bagerbach.com/uploads/AI_Assistant_Flashcard_Creator.mp4 target=_blank><img src=data:,></a>
+<h3 id=get-me-started-writing-about>Get me started writing about…</h3>
+<p>To get your writing kickstarted:</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>I'm writing about {{value:Topic}}.</span></span>
+<span class=line></span>
+<span class=line><span>Please give me some points to get started:</span></span>
+<span class=line></span>
+<span class=line><span>-</span><span>   What are the adjacent topics?</span></span>
+<span class=line><span>-</span><span>   What are the basics of the topic?</span></span>
+<span class=line><span>-</span><span>   Why was the "{{value:Topic}}" topic created?</span></span>
+<span class=line><span>-</span><span>   What problems does it solve?</span></span></code></pre>
+<h3 id=manual-prompt>Manual prompt</h3>
+<p>I consider this almost essential.<br>
+It’s similar to just opening ChatGPT and prompting it.</p>
+<p>The template will ask you for some input, which is the entire prompt.</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>{{value}}</span></span></code></pre>
+<p>It’s also the one I demonstrated in the simple setup example.</p>
+<h3 id=alternative-viewpoints>Alternative viewpoints</h3>
+<p>This one helps me a lot when I’m stuck.<br>
+It’s nice to get another perspective on things.<br>
+You’ll want to select some text (your draft) and then enter a topic when prompted.</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>I'm writing about {{value:Topic}}. Here's my draft:</span></span>
+<span class=line></span>
+<span class=line><span>{{value}}</span></span>
+<span class=line></span>
+<span class=line><span>Please suggest 3 improvements, 3 alternative viewpoints, and 3 questions for further reflection.</span></span></code></pre>
+<h3 id=prompt-chaining>Prompt Chaining</h3>
+<p>Okay, let’s get to some more advanced stuff.</p>
+<p>Prompt chaining is where a prompt uses the output of a previous prompt.<br>
+Essentially, you’re making the AI think in steps - like following a recipe.</p>
+<p><a class="hover:underline font-bold text-green-400" href=https://twitter.com/chrisbbh/status/1647670986496520193 rel="noopener noreferrer" target=_blank>Here’s a crazy example that can generate a startup name → business plan, target users, etc. → give you a step-by-step guide to implementation</a>.</p>
+<p>Like I mentioned earlier, the AI Assistant can be viewed as a building block.<br>
+You can stack them together to get powerful results.</p>
+<p>Here’s a stack of three prompts, each one using the results of the previous one.</p>
+<p><figure class=image-wrapper> <img src=data:, alt="AI Assistant - Prompt Chaining" loading=lazy decoding=async data-fullscreen=true inputtedwidth=800 width=800 height=600 class=custom-image data-sf-original-src="https://bagerbach.com/_vercel/image?url=%2Fuploads%2FAI_Assistant_Chainprompt.png&amp;w=828&amp;q=100"> </figure> <p></p>
+<p>And when you configure each one to have specific settings, you can have it completely automated:</p>
+<p><figure class=image-wrapper> <img src=data:, alt="AI Assistant - Prompt Chaining Settings" loading=lazy decoding=async data-fullscreen=true inputtedwidth=800 width=800 height=600 class=custom-image data-sf-original-src="https://bagerbach.com/_vercel/image?url=%2Fuploads%2FAI_Assistant_Chainprompt_1.png&amp;w=828&amp;q=100"> </figure> <p></p>
+<p>For example, this is the first step.<br>
+It uses the <code>ChainPrompt1</code> template and outputs its value in <code>{{value:out1}}</code>.<br>
+And since this is a macro, each output variable can be used in subsequent steps.</p>
+<p>By stacking the assistant a bunch of times and using templates that each consume the output variable of the previous step, we get chain prompting.</p>
+<p><figure class=image-wrapper> <img src=data:, alt="AI Assistant - Prompt Chaining Settings" loading=lazy decoding=async data-fullscreen=true inputtedwidth=800 width=800 height=600 class=custom-image data-sf-original-src="https://bagerbach.com/_vercel/image?url=%2Fuploads%2FAI_assistant_Chainprompting_2.jpeg&amp;w=828&amp;q=100"> </figure> <p></p>
+<p>The final capture has a capture format like this one:</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>## Iteration 1</span></span>
+<span class=line></span>
+<span class=line><span>{{value:out1}}</span></span>
+<span class=line></span>
+<span class=line><span>## Iteration 2</span></span>
+<span class=line></span>
+<span class=line><span>{{value:out2}}</span></span>
+<span class=line></span>
+<span class=line><span>## Output</span></span>
+<span class=line></span>
+<span class=line><span>{{value:out_final}}</span></span></code></pre>
+<h3 id=summarize-book-notes>Summarize book notes</h3>
+<p>This was one of the first workflows I built with the AI Assistant.</p>
+<p>Here is my previous workflow for importing book notes into Obsidian:</p>
+<ol>
+<li>Get highlights from Readwise</li>
+<li>Create note in vault</li>
+</ol>
+<p>New, AI-powered workflow:</p>
+<ol>
+<li>Get highlights from Readwise</li>
+<li>AI Assistant summarizes book based on highlights</li>
+<li>Create note in vault with summary</li>
+</ol>
+<p>The core workflow is really the same. I just pick a book, and it gets imported, so my input hasn’t changed.</p>
+<p><figure class=image-wrapper> <img src=data:, alt="AI Assistant - Summarize book notes" loading=lazy decoding=async data-fullscreen=true inputtedwidth=800 width=800 height=600 class=custom-image data-sf-original-src="https://bagerbach.com/_vercel/image?url=%2Fuploads%2FAI_Assistant_Book_Summary.jpeg&amp;w=828&amp;q=100"> </figure> <p></p>
+<p>You can get this workflow, too!<br>
+Here is the macro we need to set up:</p>
+<p><figure class=image-wrapper> <img src=data:, alt="AI Assistant - Summarize book notes macro" loading=lazy decoding=async data-fullscreen=true inputtedwidth=800 width=800 height=600 class=custom-image data-sf-original-src="https://bagerbach.com/_vercel/image?url=%2Fuploads%2FAI_Assistant_Book_Summary_Macro.png&amp;w=828&amp;q=100"> </figure> <p></p>
+<p>The first and last steps both come from my <a class="hover:underline font-bold text-green-400" href=https://bagerbach.com/blog/importing-source-notes-to-obsidian rel="noopener noreferrer" target=_blank>How I Import Literature Notes into Obsidian</a> blog post.<br>
+If you have followed it previously, you’ll need to do so again, as I’ve recently updated the script and instructions for a more powerful workflow (prior to making the AI assistant).</p>
+<p>The middle step is the AI Assistant.<br>
+You will need to set it to use the GPT-4 model for greater context size. I’ve found GPT-3.5 to be too limited for this task.<br>
+Then you need to configure the AI Assistant to use a specific template, which I’ve called <code>Summarize book notes</code>.</p>
+<p>Here is the template:</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>Please summarize the following book "{{value:title}}" by {{value:author}}. Use only the text itself as material for summarization, and do not add anything new. Rewrite this for brevity:</span></span>
+<span class=line></span>
+<span class=line><span>{{value:highlights}}</span></span></code></pre>
+<p>Each of these values come from the EzImport script, which is why the ordering of the macro has to be EzImport → AI Assistant → Capture.</p>
+<p>So, start by following the <a class="hover:underline font-bold text-green-400" href=https://bagerbach.com/blog/importing-source-notes-to-obsidian rel="noopener noreferrer" target=_blank>guide</a>. Inject the AI Assistant in the middle of that workflow with the settings shown above… and that’s it.</p>
+<p>Beyond the summary, you can add an additional step to the macro to create actionable takeaways. Use the template below for that.</p>
+<p>Finally, here is my book note template, which I use for all my book notes. The non-AI version is found in the aforementioned guide:</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>---</span></span>
+<span class=line><span>image: </span></span>
+<span class=line><span>tags: in/books state/process</span></span>
+<span class=line><span>aliases:</span></span>
+<span class=line><span>  -</span><span> "{{VALUE:title}}"</span></span>
+<span class=line><span>cssclass: </span></span>
+<span class=line><span>lastHighlightAt: {{VALUE:lastHighlightAt}}</span></span>
+<span class=line><span>shouldPublish: true</span></span>
+<span class=line><span>---</span></span>
+<span class=line></span>
+<span class=line><span># {{VALUE:title}}</span></span>
+<span class=line></span>
+<span class=line><span>## Metadata</span></span>
+<span class=line><span>Tags:: {{VALUE:tags}}</span></span>
+<span class=line><span>Type:: [[</span><span>{</span><span>]]</span></span>
+<span class=line><span>Author:: {{VALUE:author}}</span></span>
+<span class=line><span>Reference::</span></span>
+<span class=line><span>Rating:: {{VALUE:10,9,8,7,6,5,4,3,2,1,0}}</span></span>
+<span class=line><span>Reviewed Date:: ==UPDATE THIS==</span></span>
+<span class=line><span>Finished Year:: [[</span><span>{{DATE:gggg}}</span><span>]]</span></span>
+<span class=line></span>
+<span class=line><span># Thoughts</span></span>
+<span class=line></span>
+<span class=line><span># Actions Taken / Changes</span></span>
+<span class=line><span>&gt; [</span><span>!todo</span><span>] Actionable Takeaways - AI</span></span>
+<span class=line><span>{{value:actionable-takeaways-quoted}}</span></span>
+<span class=line></span>
+<span class=line><span># Summary of Key Points</span></span>
+<span class=line><span>&gt; [</span><span>!tip</span><span>] AI Summary</span></span>
+<span class=line><span>{{value:summary-quoted}}</span></span>
+<span class=line></span>
+<span class=line><span># Highlights &amp; Notes</span></span></code></pre>
+<h3 id=actionable-takeaways>Actionable takeaways</h3>
+<p>Create actionable takeaways based on the text you give. This takes a <code>summary</code> variable, which you can get from the previous step in the macro (using the Summarize book notes workflow, for example).</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>Write actionable takeaways based on the following text. Write a step-by-step plan. Start by giving me something I can take action on immediately, and then tell me what other things I can do, based on the text. Use the 80/20 principle to prioritize the most important first.</span></span>
+<span class=line></span>
+<span class=line><span>{{value:summary}}</span></span></code></pre>
+<h3 id=youtube-summarizer>YouTube Summarizer</h3>
+<p>This prompt template will allow you to grab the transcript of a YouTube video, and then summarize it.</p>
+<p>All you need to provide is the YouTube video URL when you want to create a new note.</p>
+<p>I couple this with the <a href=#actionable-takeaways class="font-bold text-green-400 hover:underline">Actionable takeaways</a> prompt template to create a note with a summary and actionable takeaways.</p>
+<p>Therefore, my macro looks like this:</p>
+<ol>
+<li>YouTube Summarizer - AI Assistant step grabs the transcript &amp; summarizes it. It also sets up a few variables for the next steps.</li>
+<li>Actionable takeaways - AI Assistant step creates actionable takeaways based on the summary.</li>
+<li>Create note - Creates a new note with the title of the video, and the summary + actionable takeaways.</li>
+</ol>
+<p>The third step - creating a new note - is a Template action which creates a new note with the file name <code>+ {{VALUE:safeTitle}}</code>. The <code>safeTitle</code> comes from the first step of the macro, and represents the title of the video, but with all illegal characters removed.</p>
+<p>The limit for GPT-4 on the YT Summarizer seems to be ~20 min video length.</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>Please summarize the following text. Use only the text itself as material for summarization, and do not add anything new. Rewrite this for brevity, in outline form:</span></span>
+<span class=line></span>
+<span class=line><span>```js quickadd</span></span>
+<span class=line><span>const videoUrl = await this.quickAddApi.inputPrompt("Video URL");</span></span>
+<span class=line></span>
+<span class=line><span>const url = new URL(videoUrl);</span></span>
+<span class=line><span>const videoId = url.searchParams.get('v');</span></span>
+<span class=line></span>
+<span class=line><span>this.variables["📺 YouTube Video ID"] = videoId;</span></span>
+<span class=line></span>
+<span class=line><span>const transcriptBody = await requestUrl(`https://youtubetranscript.com/?server_vid2=${videoId}`).text;</span></span>
+<span class=line><span>const videoPage = await requestUrl(videoUrl).text;</span></span>
+<span class=line></span>
+<span class=line><span>console.log(transcriptBody);</span></span>
+<span class=line><span>console.log(videoPage);</span></span>
+<span class=line></span>
+<span class=line><span>const dp = new DOMParser();</span></span>
+<span class=line><span>const dom = dp.parseFromString(transcriptBody, 'text/xml');</span></span>
+<span class=line><span>const transcriptEl = dom.getElementsByTagName('transcript')[0];</span></span>
+<span class=line><span>if (!transcriptEl) {</span></span>
+<span class=line><span>	new Notice("No transcript found.");</span></span>
+<span class=line><span>	throw new Error("No transcript found.")</span></span>
+<span class=line><span>}</span></span>
+<span class=line><span>const textElements = transcriptEl.getElementsByTagName('text');</span></span>
+<span class=line></span>
+<span class=line><span>const textArr = [];</span></span>
+<span class=line><span>for (let i = 0; i &lt; textElements.length; i++) {</span></span>
+<span class=line><span>  const text = textElements[i];</span></span>
+<span class=line><span>  textArr.push(text.textContent);</span></span>
+<span class=line><span>}</span></span>
+<span class=line></span>
+<span class=line><span>const transcript = textArr.join("\n");</span></span>
+<span class=line></span>
+<span class=line><span>const title = videoPage.split('&lt;title&gt;')[1].split('&lt;/title&gt;')[0].replace(" - YouTube", '').trim();</span></span>
+<span class=line></span>
+<span class=line><span>function sanitizeFileName(fileName) {</span></span>
+<span class=line><span>  const illegalChars = /[\/\?&lt;&gt;\\:\*\|"]/g;</span></span>
+<span class=line><span>  const undesiredChars = /&amp;quot;/g;</span></span>
+<span class=line><span>  const replacementChar = '_';</span></span>
+<span class=line><span>  return fileName.replace(illegalChars, replacementChar).replace(undesiredChars, "");</span></span>
+<span class=line><span>}</span></span>
+<span class=line></span>
+<span class=line><span>function sanitizeTitle(text) {</span></span>
+<span class=line><span>  const undesiredChars = /&amp;quot;/g;</span></span>
+<span class=line><span>  const replacementChar = "";</span></span>
+<span class=line><span>  return text.replace(undesiredChars, replacementChar);</span></span>
+<span class=line><span>}</span></span>
+<span class=line></span>
+<span class=line><span>this.variables["title"] = sanitizeTitle(title);</span></span>
+<span class=line><span>this.variables["safeTitle"] = sanitizeFileName(title);</span></span>
+<span class=line></span>
+<span class=line><span>return transcript;</span></span>
+<span class=line><span>```</span></span></code></pre>
+<p>Here is my YouTube video note template:</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>---</span></span>
+<span class=line><span>tags: in/video state/process</span></span>
+<span class=line><span>aliases:</span></span>
+<span class=line><span>  -</span><span> "+ {{VALUE:title}}"</span></span>
+<span class=line><span>cssclass: null</span></span>
+<span class=line><span>image: https://i.ytimg.com/vi/{{VALUE:📺 YouTube Video ID}}/hqdefault.jpg</span></span>
+<span class=line><span>---</span></span>
+<span class=line></span>
+<span class=line><span>Title:: {{VALUE:title}}</span></span>
+<span class=line><span>Type:: [[</span><span>+</span><span>]]</span></span>
+<span class=line><span>Tags:: </span></span>
+<span class=line><span>URL:: https://www.youtube.com/watch?v={{VALUE:📺 YouTube Video ID}}</span></span>
+<span class=line><span>Channel:: </span></span>
+<span class=line><span>Rating:: {{VALUE:10,9,8,7,6,5,4,3,2,1,0}}</span></span>
+<span class=line><span>Reference:: </span></span>
+<span class=line><span>Publish Date:: </span></span>
+<span class=line><span>Reviewed Date:: ==UPDATE THIS==</span></span>
+<span class=line></span>
+<span class=line><span>---</span></span>
+<span class=line></span>
+<span class=line><span>&lt;center&gt;&lt;iframe width="560" height="315" src="https://www.youtube.com/embed/{{VALUE:📺 YouTube Video ID}}" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen&gt;&lt;/iframe&gt;&lt;/center&gt;</span></span>
+<span class=line></span>
+<span class=line><span>---</span></span>
+<span class=line><span>&gt; [</span><span>!info</span><span>] AI Summary</span></span>
+<span class=line><span>{{value:summary-quoted}}</span></span>
+<span class=line></span>
+<span class=line><span>&gt; [</span><span>!todo</span><span>] Actionable Takeaways</span></span>
+<span class=line><span>{{value:actionable-takeaways-quoted}}</span></span>
+<span class=line></span>
+<span class=line><span>&lt;% tp.file.cursor(0) %&gt;</span></span></code></pre>
+<h3 id=website-summarizer>Website Summarizer</h3>
+<p>This prompt template will allow you to grab the text of a website, and then summarize it.</p>
+<pre class="astro-code github-dark" tabindex=0 data-language=markdown><code><span class=line><span>Summarize the content of this website:</span></span>
+<span class=line></span>
+<span class=line><span>---</span></span>
+<span class=line></span>
+<span class=line><span>```js quickadd</span></span>
+<span class=line><span>async function fetchAndExtractText(url) {</span></span>
+<span class=line><span>  try {</span></span>
+<span class=line><span>    const htmlContent = await request(url);</span></span>
+<span class=line><span>  </span></span>
+<span class=line><span>    // Create a DOM parser to parse the HTML content</span></span>
+<span class=line><span>    const parser = new DOMParser();</span></span>
+<span class=line><span>    const doc = parser.parseFromString(htmlContent, 'text/html');</span></span>
+<span class=line><span>    </span></span>
+<span class=line><span>    // Remove script tags</span></span>
+<span class=line><span>    const scriptTags = doc.querySelectorAll('script, style, noscript');</span></span>
+<span class=line><span>    scriptTags.forEach(tag =&gt; tag.remove());</span></span>
+<span class=line><span>    </span></span>
+<span class=line><span>    // Extract and return the textual content</span></span>
+<span class=line><span>    return doc.body.innerText || doc.body.textContent || "";</span></span>
+<span class=line><span>  } catch (error) {</span></span>
+<span class=line><span>    console.error('Error fetching or parsing the page:', error);</span></span>
+<span class=line><span>    return null;</span></span>
+<span class=line><span>  }</span></span>
+<span class=line><span>}</span></span>
+<span class=line></span>
+<span class=line><span>const site = await this.quickAddApi.inputPrompt("Website URL");</span></span>
+<span class=line><span>return await fetchAndExtractText(site)</span></span>
+<span class=line><span>```</span></span></code></pre>
+<h2 id=final-words>Final words</h2>
+<p>This is still the early stages.<br>
+I have so many ideas for workflows, prompts, and other cool things we can do with this AI Assistant.</p>
+<p>If you have any questions, please let me know.<br>
+All my prompt templates can also be found on the same page the AI Assistant is.</p>
+<p>I’d love to see how you are using AI in your vault. Feel free to @ me on Twitter.</p>
+<p>Please remember that using your API has monetary costs.<br>
+GPT-3.5 is rather inexpensive, but GPT-4 can get costly if used excessively.<br>
+I strongly encourage you to set a spending limit on your OpenAI account for this very reason.<br>
+Try to play around with the models to see what works for you.</p>
+<p>This tool — and AI in general — is a major productivity multiplier.<br>
+It should never replace your thinking, only augment it.<br>
+Let it handle the trivial parts of PKM, so you can focus on what’s important.</p> </div> <div class="flex justify-center mt-8"> <astro-island uid=ZyB4fL prefix=r0 component-url=/_astro/Newsletter.CQE0ejyG.js component-export=default renderer-url=/_astro/client.Cc6R7LFc.js props='{"title":[0,"Liked this post? Join the newsletter."],"subtitle":[0,"Get notified whenever I post something new."]}' client=load opts='{"name":"Newsletter","value":true}' await-children><div class="rounded-lg bg-gray-900 p-4 sm:p-6 text-white border border-gray-700 undefined"><div><h2 class="mb-1 text-xl font-semibold">Liked this post? Join the newsletter.</h2><p class="mb-4 text-sm text-gray-400">Get notified whenever I post something new.<div class="flex flex-col items-center justify-center w-full"><form class="flex w-full max-w-md flex-col sm:flex-row items-center gap-3"><input type=email placeholder="Enter your email" required class="w-full flex-grow rounded-md bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-400" name=email value><button type=submit class="w-full sm:w-auto sm:min-w-[120px] rounded-md bg-white px-6 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-400" tabindex=0>Subscribe</button></form></div></div></div></astro-island> </div> </div> </article> </main> </div> 
+<deepl-input-controller><template shadowrootmode=open><div dir=ltr><div class="dl-input-translation-container svelte-95aucy"><div></div></div></div></template></deepl-input-controller><script data-template-shadow-root>(()=>{document.currentScript.remove();processNode(document);function processNode(node){node.querySelectorAll("template[shadowrootmode]").forEach(element=>{let shadowRoot = element.parentElement.shadowRoot;if (!shadowRoot) {try {shadowRoot=element.parentElement.attachShadow({mode:element.getAttribute("shadowrootmode"),delegatesFocus:element.getAttribute("shadowrootdelegatesfocus")!=null,clonable:element.getAttribute("shadowrootclonable")!=null,serializable:element.getAttribute("shadowrootserializable")!=null});shadowRoot.innerHTML=element.innerHTML;element.remove()} catch (error) {} if (shadowRoot) {processNode(shadowRoot)}}})}})()</script>
